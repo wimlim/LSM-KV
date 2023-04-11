@@ -1,8 +1,9 @@
 #include "kvstore.h"
-#include <string>
+#include "utils.h"
 
-KVStore::KVStore(const std::string &dir): KVStoreAPI(dir)
+KVStore::KVStore(const std::string &dir): KVStoreAPI(dir), direct(dir)
 {
+	utils::mkdir(dir.c_str());
 }
 
 KVStore::~KVStore()
@@ -16,7 +17,11 @@ KVStore::~KVStore()
  */
 void KVStore::put(uint64_t key, const std::string &s)
 {
-	memTable.ins(key, s);
+	if (!memTable.ins(key, s)) {
+
+		memTable.reset();
+		memTable.ins(key, s);
+	}
 }
 /**
  * Returns the (string) value of the given key.

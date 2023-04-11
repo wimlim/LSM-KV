@@ -26,12 +26,16 @@ bool SkipList::ins(uint64_t key, const std::string& val) {
         update[i] = x;
     }
     x = x->forward[0];
+    //already in table
     if (x != nullptr && x->key == key) {
-        //if (size + 12 + val.size() - x->val.size() > MAX_SIZE)
-            //return false;
+        if (size + 12 + val.size() - x->val.size() > MAX_SIZE)
+            return false;
         x->val = val;
         return true;
     } 
+    // not in table yet
+    if (size + 12 + val.size() > MAX_SIZE)
+        return false;
     int new_level = randomLevel();
     if (new_level > level) {
         for (int i = level + 1; i <= new_level; i++)
