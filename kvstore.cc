@@ -1,9 +1,12 @@
 #include "kvstore.h"
 #include "utils.h"
+#include <fstream>
 
-KVStore::KVStore(const std::string &dir): KVStoreAPI(dir), direct(dir)
+KVStore::KVStore(const std::string &dir): 
+	KVStoreAPI(dir), timestamp(0), direct(dir)
 {
 	utils::mkdir(dir.c_str());
+
 }
 
 KVStore::~KVStore()
@@ -18,6 +21,8 @@ KVStore::~KVStore()
 void KVStore::put(uint64_t key, const std::string &s)
 {
 	if (!memTable.ins(key, s)) {
+		std::string filename = std::to_string(timestamp++) + ".sst";
+		std::ofstream out(filename, std::ios::out | std::ios::binary);
 
 		memTable.reset();
 		memTable.ins(key, s);
@@ -29,6 +34,7 @@ void KVStore::put(uint64_t key, const std::string &s)
  */
 std::string KVStore::get(uint64_t key)
 {
+	
 	return memTable.get(key);
 }
 /**

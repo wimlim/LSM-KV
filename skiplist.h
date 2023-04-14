@@ -1,9 +1,9 @@
 #pragma once
-
 #include <cmath>
 #include <random>
 #include <memory>
 #include <vector>
+static const std::string empty_string = "";
 
 class SkiplistNode {
 public:
@@ -26,8 +26,8 @@ public:
     const std::string get(uint64_t key) const;
     const int getSize() const;
 private:
-    int level;
-    int size;
+    uint16_t level;
+    uint64_t size;
     std::shared_ptr<SkiplistNode> head;
     static constexpr float p = 1 / 2.71828182845904523536;
     static constexpr int MAX_LEVEL = 32;

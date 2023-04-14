@@ -76,7 +76,7 @@ const std::string SkipList::get(uint64_t key) const {
     if (x != nullptr && x->key == key && x->val != "~DELETE~")
         return x->val;
     else
-        return "";
+        return empty_string;
 }
 
 int SkipList::randomLevel() {

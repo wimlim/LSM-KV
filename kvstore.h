@@ -8,6 +8,7 @@ class KVStore : public KVStoreAPI {
 private:
 	SkipList memTable;
 	std::string direct;
+	int timestamp;
 
 public:
 	KVStore(const std::string &dir);
