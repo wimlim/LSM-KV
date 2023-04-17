@@ -2,13 +2,17 @@
 
 #include "kvstore_api.h"
 #include "skiplist.h"
+#include "bloomfilter.h"
 #include "utils.h"
+#include <fstream>
+#include <experimental/filesystem>
 
 class KVStore : public KVStoreAPI {
 private:
 	SkipList memTable;
+	std::vector<BloomFilter> bloomFilters;
 	std::string direct;
-	int timestamp;
+	int timeStamp;
 
 public:
 	KVStore(const std::string &dir);

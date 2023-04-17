@@ -1,9 +1,9 @@
 #include "kvstore.h"
 #include "utils.h"
-#include <fstream>
+
 
 KVStore::KVStore(const std::string &dir): 
-	KVStoreAPI(dir), timestamp(0), direct(dir)
+	KVStoreAPI(dir), timeStamp(0), direct(dir)
 {
 	utils::mkdir(dir.c_str());
 
@@ -21,7 +21,7 @@ KVStore::~KVStore()
 void KVStore::put(uint64_t key, const std::string &s)
 {
 	if (!memTable.ins(key, s)) {
-		std::string filename = std::to_string(timestamp++) + ".sst";
+		std::string filename = std::to_string(timeStamp++) + ".sst";
 		std::ofstream out(filename, std::ios::out | std::ios::binary);
 
 		memTable.reset();
@@ -52,6 +52,10 @@ bool KVStore::del(uint64_t key)
  */
 void KVStore::reset()
 {
+	namespace fs = std::experimental::filesystem;
+	if (!fs::remove_all(direct))
+		printf("Error: cannot remove directory %s\n");
+	bloomFilters.clear();
 	memTable.reset();
 }
 
