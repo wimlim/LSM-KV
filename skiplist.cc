@@ -4,6 +4,44 @@ const int SkipList::getSize() const {
     return size;
 }
 
+const void SkipList::writeToDisk(const std::string& filename, uint64_t timeStamp, BloomFilter& filter) const {
+    //transform skiplist to bloom filter
+    auto x = head->forward[0];
+    uint64_t num = 0;
+    uint64_t key;
+    uint64_t minkey = 0xffffff;
+    uint64_t maxkey = 0;
+    while (x) {
+        key = x->key;
+        num++;
+        minkey = key < minkey ? key : minkey;
+        maxkey = key > maxkey ? key : maxkey;
+        filter.add(key);
+        x = x->forward[0];
+    }
+    filter.keyNum = num;
+    filter.minKey = minkey;
+    filter.maxKey = maxkey;
+    // write header
+    std::ofstream outfile(filename, std::ios::binary | std::ios::out | std::ios::trunc);
+    outfile << timeStamp << num << minkey << maxkey;
+    // write bloom filter
+    outfile.write(filter.bytes.data(), filter.bytes.size());
+    // write key and offset
+    x = head->forward[0];
+    while (x) {
+        outfile << x->key << x->val.size();
+        x = x->forward[0];
+    }
+    // write value
+    x = head->forward[0];
+    while (x) {
+        outfile.write(x->val.data(), x->val.size());
+        x = x->forward[0];
+    }
+    outfile.close();
+}
+
 void SkipList::reset() {
     auto x = head->forward[0];
     while (x != nullptr) {
@@ -17,7 +55,7 @@ void SkipList::reset() {
         head->forward[i].reset();
 }
 
-bool SkipList::ins(uint64_t key, const std::string& val) {
+void SkipList::ins(uint64_t key, const std::string& val) {
     std::vector<std::shared_ptr<SkiplistNode>> update(MAX_LEVEL);
     auto x = head;
     for (int i = level; i >= 0; i--) {
@@ -26,16 +64,12 @@ bool SkipList::ins(uint64_t key, const std::string& val) {
         update[i] = x;
     }
     x = x->forward[0];
-    //already in table
+    // already in table
     if (x != nullptr && x->key == key) {
-        if (size + 12 + val.size() - x->val.size() > MAX_SIZE)
-            return false;
         x->val = val;
-        return true;
+        return;
     } 
     // not in table yet
-    if (size + 12 + val.size() > MAX_SIZE)
-        return false;
     int new_level = randomLevel();
     if (new_level > level) {
         for (int i = level + 1; i <= new_level; i++)
@@ -79,7 +113,7 @@ const std::string SkipList::get(uint64_t key) const {
         return empty_string;
 }
 
-int SkipList::randomLevel() {
+uint32_t SkipList::randomLevel() {
     static std::mt19937 generator(std::random_device{}());
     static std::uniform_real_distribution<float> distribution(0, 1);
     int lvl = 1;

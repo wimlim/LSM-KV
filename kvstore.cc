@@ -1,12 +1,45 @@
 #include "kvstore.h"
 #include "utils.h"
 
-
+/**
+ * if there is no directory, create one
+ * if there are files in the directory, load them into memory
+**/
 KVStore::KVStore(const std::string &dir): 
-	KVStoreAPI(dir), timeStamp(0), direct(dir)
+	KVStoreAPI(dir), timeStamp(0), maxLevel(0), direct(dir)
 {
-	utils::mkdir(dir.c_str());
-
+	if (!fs::exists(direct)) {
+		fs::create_directory(direct);
+		return;
+	}
+	uint32_t t, n, mink, maxk;
+	std::vector<char> buffer(1280);
+	// iterate all directories named Level*
+	for (auto &level : fs::directory_iterator(direct)) {
+		if (level.path().filename().string().substr(0, 5) == "Level") {
+			// iterate all files in the directory
+			for (auto &file : fs::directory_iterator(level.path())) {
+				// load bloom filter
+				if (file.path().extension() == ".sst") {
+					std::ifstream infile(file.path().string(), std::ios::in | std::ios::binary);
+					if (!infile.is_open()) {
+						printf("Error: cannot open file %s\n", file.path().string().c_str());
+						continue;
+					}
+					// read t, n, mink, maxk
+					infile.read(t, 4);
+					infile.read(n, 4);
+					infile.read(mink, 4);
+					infile.read(maxk, 4);
+					timeStamp = timeStamp > t ? timeStamp : t;
+					// read bloom filter
+					infile.read(buffer.data(), 1280);
+					bloomFilters.push_back(std::make_pair(t, BloomFilter(n, mink, maxk, buffer)));
+					infile.close();
+				}
+			}
+		}
+	}
 }
 
 KVStore::~KVStore()
@@ -20,10 +53,11 @@ KVStore::~KVStore()
  */
 void KVStore::put(uint64_t key, const std::string &s)
 {
-	if (!memTable.ins(key, s)) {
-		std::string filename = std::to_string(timeStamp++) + ".sst";
+	if (memTable.getSize() + s.size() > MAX_MEM_SIZE) {
+		std::string filename = direct + "Level0" +  std::to_string(timeStamp) + ".sst";
 		std::ofstream out(filename, std::ios::out | std::ios::binary);
-
+		bloomFilters.push_back(std::make_pair(timeStamp, BloomFilter()));
+		memTable.writeToDisk(direct, timeStamp, bloomFilters.back().second);
 		memTable.reset();
 		memTable.ins(key, s);
 	}
@@ -34,8 +68,10 @@ void KVStore::put(uint64_t key, const std::string &s)
  */
 std::string KVStore::get(uint64_t key)
 {
-	
-	return memTable.get(key);
+	std::string res = memTable.get(key);
+	if (res == empty_string) {
+
+	}
 }
 /**
  * Delete the given key-value pair if it exists.
@@ -52,10 +88,15 @@ bool KVStore::del(uint64_t key)
  */
 void KVStore::reset()
 {
-	namespace fs = std::experimental::filesystem;
 	if (!fs::remove_all(direct))
 		printf("Error: cannot remove directory %s\n");
+	// delete all files and directs under direct
+	for (auto &level : fs::directory_iterator(direct)) {
+		fs::remove_all(level.path());
+	}
+	// reset bloomfilters
 	bloomFilters.clear();
+	// reset memTable
 	memTable.reset();
 }
 

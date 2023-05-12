@@ -3,6 +3,8 @@
 #include <random>
 #include <memory>
 #include <vector>
+#include <fstream>
+#include "bloomfilter.h"
 static const std::string empty_string = "";
 
 class SkiplistNode {
@@ -21,16 +23,17 @@ public:
     //iniaitlize
     SkipList() : level(0), size(10272), head(new SkiplistNode(0, "")) {}
     void reset();
-    bool ins(uint64_t key, const std::string& val);
+    void ins(uint64_t key, const std::string& val);
     bool del(uint64_t key);
     const std::string get(uint64_t key) const;
     const int getSize() const;
+    const void writeToDisk(const std::string& filename, uint64_t timeStamp, BloomFilter& filter) const;
 private:
     uint16_t level;
     uint64_t size;
     std::shared_ptr<SkiplistNode> head;
     static constexpr float p = 1 / 2.71828182845904523536;
-    static constexpr int MAX_LEVEL = 32;
-    static constexpr int MAX_SIZE = 2 * 1024 * 1024;
-    int randomLevel();
+    static constexpr uint32_t MAX_LEVEL = 32;
+    static constexpr uint32_t MAX_SIZE = 2 * 1024 * 1024;
+    uint32_t randomLevel();
 };

@@ -1,6 +1,9 @@
 #include "bloomfilter.h"
 
-BloomFilter::BloomFilter() : bytes(kNumBits / 8, 0) {}
+BloomFilter::BloomFilter(uint32_t n, uint32_t min, uint32_t max, const std::vector<char> &b) : 
+            bytes(kNumBits / 8, 0), keyNum(n), minKey(min), maxKey(max) {
+    bytes = b;
+}
 
 void BloomFilter::add(uint64_t key) {
     MurmurHash3_x64_128(&key, sizeof(key), 1, hash);

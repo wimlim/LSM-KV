@@ -5,14 +5,20 @@
 #include "bloomfilter.h"
 #include "utils.h"
 #include <fstream>
+#include <cstdint>
+#include <algorithm>
 #include <experimental/filesystem>
+namespace fs = std::experimental::filesystem;
 
 class KVStore : public KVStoreAPI {
 private:
 	SkipList memTable;
-	std::vector<BloomFilter> bloomFilters;
+	std::vector<std::pair<uint32_t, BloomFilter>> bloomFilters;
+	std::vector<std::vector<uint32_t>> fileNum;
 	std::string direct;
-	int timeStamp;
+	uint64_t timeStamp;
+	uint64_t maxLevel;
+	static constexpr uint32_t MAX_MEM_SIZE = 2 * 1024 * 1024;
 
 public:
 	KVStore(const std::string &dir);
