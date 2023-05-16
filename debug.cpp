@@ -11,8 +11,11 @@ int main() {
     list.ins(2, "2");
     list.ins(3, "3");
     SSTable x;
-    std::string path = "D:/UserData/Desktop/LSMKV/data/level-0/0.sst";
-    list.writeToDisk(path, 0, x);
-    KVStore store("D:/UserData/Desktop/LSMKV/data");
-    std::cout << store.get(3).c_str() << std::endl;
+    KVStore store("./data");
+    std::cout << store.get(1).c_str() << std::endl;
+    store.put(1, "SE");
+    std::cout << store.get(1).c_str() << std::endl;
+    store.del(1);
+    std::cout << store.get(1).c_str() << std::endl;
+    std::cout << store.del(1) << std::endl;
 }

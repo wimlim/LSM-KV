@@ -7,10 +7,12 @@ bool filter_cmp(const std::pair<uint64_t, SSTable> &a, const std::pair<uint64_t,
  * if there is no directory, create one
  * if there are files in the directory, load them into memory
 **/
-KVStore::KVStore(const std::string &dir): KVStoreAPI(dir), timeStamp(0), direct(dir), levelNode(10)
+KVStore::KVStore(const std::string &dir): KVStoreAPI(dir), timeStamp(-1), direct(dir), levelNode(10)
 {
     if (!utils::dirExists(direct)) {
         utils::mkdir(direct.c_str());
+        timeStamp = 0;
+        initLevel();
         return;
     }
     uint64_t t, n, mink, maxk;
@@ -37,14 +39,12 @@ KVStore::KVStore(const std::string &dir): KVStoreAPI(dir), timeStamp(0), direct(
                         std::cerr << "Error: kvstore open file failed" << std::endl;
                         continue;
                     }
-                    printf("%s open\n", filepath.c_str());
                     // read t, n, mink, maxk
                     infile.read(buffer.data(), 32);
                     memcpy(&t, buffer.data(), 8);
                     memcpy(&n, buffer.data() + 8, 8);
                     memcpy(&mink, buffer.data() + 16, 8);
                     memcpy(&maxk, buffer.data() + 24, 8);
-                    printf("%d %d %d %d %d\n", l, t, n, mink, maxk);
                     timeStamp = timeStamp > t ? timeStamp : t;
                     // read bloom filter
                     infile.read(buffer.data(), 10240);
@@ -57,13 +57,26 @@ KVStore::KVStore(const std::string &dir): KVStoreAPI(dir), timeStamp(0), direct(
             }
         }
     }
+    initLevel();
     std::sort(ssTables.begin(), ssTables.end(), filter_cmp);
 	timeStamp++;
 }
 
+void KVStore::initLevel() {
+    for (int i = 0; i < 1; i++) {
+        std::string levelpath = direct + "/level-" + std::to_string(i);
+        if (!utils::dirExists(levelpath)) {
+            utils::mkdir(levelpath.c_str());
+        }
+    }
+}
+
 KVStore::~KVStore()
 {
-
+    std::string filename = direct + "/level-0/" +  std::to_string(timeStamp) + ".sst";
+    ssTables.push_back(std::make_pair(timeStamp, SSTable()));
+    memTable.writeToDisk(filename, timeStamp, ssTables.back().second);
+    compaction();
 }
 
 /**
@@ -74,10 +87,10 @@ void KVStore::put(uint64_t key, const std::string &s)
 {
 	if (memTable.getSize() + s.size() + 12 > MAX_MEM_SIZE) {
 		std::string filename = direct + "/level-0/" +  std::to_string(timeStamp) + ".sst";
-		std::ofstream out(filename, std::ios::out | std::ios::binary | std::ios::trunc);
 		ssTables.push_back(std::make_pair(timeStamp, SSTable()));
-		memTable.writeToDisk(direct, timeStamp, ssTables.back().second);
+		memTable.writeToDisk(filename, timeStamp, ssTables.back().second);
         compaction();
+        timeStamp++;
 		memTable.reset();
 		memTable.ins(key, s);
 	}
@@ -92,6 +105,9 @@ void KVStore::put(uint64_t key, const std::string &s)
 std::string KVStore::get(uint64_t key)
 {
 	std::string res = memTable.get(key);
+    if (res == "~DELETED~") {
+        return "";
+    }
     if (res != "") {
         return res;
     }
@@ -116,14 +132,13 @@ std::string KVStore::get(uint64_t key)
 bool KVStore::del(uint64_t key)
 {
     std::string res = get(key);
-    if (res == "") {
+    if (res == "" || res == "~DELETED~") {
         return false;
     }
     else {
         put(key, "~DELETED~");
         return true;
     }
-    return false;
 }
 
 /**
@@ -134,12 +149,12 @@ void KVStore::reset()
 {
 	// delete all files and directs under direct
     for (int i = 0; i < 10; i++) {
-        std::string levelpath = direct + "\\level-" + std::to_string(i);
+        std::string levelpath = direct + "/level-" + std::to_string(i);
         for (auto &file : levelNode[i]) {
-            std::string filepath = levelpath + "\\" + std::to_string(file) + ".sst";
+            std::string filepath = levelpath + "/" + std::to_string(file) + ".sst";
             utils::rmfile(filepath.c_str());
         }
-        utils::rmdir(levelpath.c_str());
+        //utils::rmdir(levelpath.c_str());
     }
 	// reset bloomfilters
 	ssTables.clear();

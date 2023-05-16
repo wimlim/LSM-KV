@@ -64,17 +64,23 @@ std::string SSTable::get(std::string &path, uint64_t key) {
         return "";
     }
     // read the value
-    std::ifstream infile(path + "\\level-" + std::to_string(level) + "\\" + std::to_string(timeStamp) + ".sst", std::ios::binary);
+    std::string pathname = path + "/level-" + std::to_string(level) + "/" + std::to_string(timeStamp) + ".sst";
+    std::ifstream infile(pathname, std::ios::binary);
     if (!infile) {
-        std::cerr << "open file error" << std::endl;
+        std::cerr << "ssTable open file error" << std::endl;
         return "";
     }
     std::string value;
     infile.seekg(offset);
-    if (mid == r - 1)
+    if (mid == (index.size() - 1)) {
         infile >> value;
-    else
-        infile.read(&value[0], index[mid + 1].second - offset);
+    }
+    else {
+        uint32_t len = index[mid + 1].second - offset;
+        char buffer[len];
+        infile.read(buffer, len);
+        value = std::string(buffer, len);
+    }
     infile.close();
     return value;
 }

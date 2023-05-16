@@ -27,6 +27,7 @@ public:
 
 	void scan(uint64_t key1, uint64_t key2, std::list<std::pair<uint64_t, std::string> > &list) override;
 private:
+	void initLevel();
 	void compaction();
 	MemTable memTable;
 	std::vector<std::pair<uint32_t, SSTable>> ssTables;

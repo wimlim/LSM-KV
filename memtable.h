@@ -6,6 +6,7 @@
 #include <fstream>
 #include <iostream>
 #include "sstable.h"
+#include "utils.h"
 
 class SkiplistNode {
 public:

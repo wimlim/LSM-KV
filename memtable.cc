@@ -9,7 +9,7 @@ const void MemTable::writeToDisk(const std::string& filename, uint64_t timeStamp
     auto x = head->forward[0];
     uint64_t num = 0;
     uint64_t key;
-    uint64_t minkey = 0xffffff;
+    uint64_t minkey = 0xffffffffffffffff;
     uint64_t maxkey = 0;
     while (x) {
         key = x->key;
@@ -22,11 +22,12 @@ const void MemTable::writeToDisk(const std::string& filename, uint64_t timeStamp
     table.keyNum = num;
     table.minKey = minkey;
     table.maxKey = maxkey;
+    table.level = 0;
+    table.timeStamp = timeStamp;
     // write header
     std::ofstream outfile(filename, std::ios::binary | std::ios::out | std::ios::trunc);
     if (!outfile.is_open()) {
-        //std::cerr << "Error : memTable open file failed" << std::endl;
-        std::cerr << filename << std::endl;
+        std::cerr << "Error : memTable open file " << filename << " failed" << std::endl;
         return;
     }
     outfile.write(reinterpret_cast<char*>(&timeStamp), sizeof(uint64_t));
@@ -38,6 +39,7 @@ const void MemTable::writeToDisk(const std::string& filename, uint64_t timeStamp
     // write key and offset
     x = head->forward[0];
     uint32_t offset = 10272 + num * 12;
+    // printf the pos of outfile
     while (x) {
         key = x->key;
         table.addKeySet(key, offset);
@@ -104,10 +106,12 @@ const std::string MemTable::get(uint64_t key) const {
             x = x->forward[i];
     }
     x = x->forward[0];
-    if (x != nullptr && x->key == key && x->val != "~DELETE~")
+    if (x != nullptr && x->key == key) {
         return x->val;
-    else
+    }
+    else {
         return "";
+    }
 }
 
 uint32_t MemTable::randomLevel() {
