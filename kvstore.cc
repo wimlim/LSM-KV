@@ -1,45 +1,64 @@
 #include "kvstore.h"
-#include "utils.h"
 
+bool filter_cmp(const std::pair<uint64_t, SSTable> &a, const std::pair<uint64_t, SSTable> &b) {
+    return a.first < b.first;
+}
 /**
  * if there is no directory, create one
  * if there are files in the directory, load them into memory
 **/
-KVStore::KVStore(const std::string &dir): 
-	KVStoreAPI(dir), timeStamp(0), maxLevel(0), direct(dir)
+KVStore::KVStore(const std::string &dir): KVStoreAPI(dir), timeStamp(0), maxLevel(0), direct(dir), levelNode(10)
 {
-	if (!fs::exists(direct)) {
-		fs::create_directory(direct);
-		return;
-	}
-	uint32_t t, n, mink, maxk;
-	std::vector<char> buffer(1280);
-	// iterate all directories named Level*
-	for (auto &level : fs::directory_iterator(direct)) {
-		if (level.path().filename().string().substr(0, 5) == "Level") {
-			// iterate all files in the directory
-			for (auto &file : fs::directory_iterator(level.path())) {
-				// load bloom filter
-				if (file.path().extension() == ".sst") {
-					std::ifstream infile(file.path().string(), std::ios::in | std::ios::binary);
-					if (!infile.is_open()) {
-						printf("Error: cannot open file %s\n", file.path().string().c_str());
-						continue;
-					}
-					// read t, n, mink, maxk
-					infile.read(t, 4);
-					infile.read(n, 4);
-					infile.read(mink, 4);
-					infile.read(maxk, 4);
-					timeStamp = timeStamp > t ? timeStamp : t;
-					// read bloom filter
-					infile.read(buffer.data(), 1280);
-					bloomFilters.push_back(std::make_pair(t, BloomFilter(n, mink, maxk, buffer)));
-					infile.close();
-				}
-			}
-		}
-	}
+    if (!utils::dirExists(direct)) {
+        utils::mkdir(direct.c_str());
+        return;
+    }
+    uint64_t t, n, mink, maxk;
+    uint32_t l;
+    std::vector<char> buffer(1280);
+    // iterate all directories named Level*
+    std::vector<std::string> levels;
+	std::vector<std::string> files;
+    utils::scanDir(direct, levels);
+    for (auto &level : levels) {
+        if (level.substr(0, 6) == "level-") {
+            l = std::stoi(level.substr(6));
+            std::string levelpath = direct + "\\" + level;
+            utils::scanDir(levelpath, files);
+            // iterate all files in the directory
+            for (auto &file : files) {
+				// calculate the files under the level
+                levelNode[l].push_back(stoi(file.substr(0, file.length() - 4)));
+                std::string filepath = levelpath + "\\" + file;
+                // load bloom filter
+                if (file.substr(file.length() - 4) == ".sst") {
+                    std::ifstream infile(filepath, std::ios::in | std::ios::binary);
+                    if (!infile.is_open()) {
+                        printf("Error: cannot open file %s\n", filepath.c_str());
+                        continue;
+                    }
+                    printf("%s open\n", filepath.c_str());
+                    // read t, n, mink, maxk
+                    infile.read(buffer.data(), 32);
+                    memcpy(&t, buffer.data(), 8);
+                    memcpy(&n, buffer.data() + 8, 8);
+                    memcpy(&mink, buffer.data() + 16, 8);
+                    memcpy(&maxk, buffer.data() + 24, 8);
+                    printf("%d %d %d %d %d\n", l, t, n, mink, maxk);
+                    timeStamp = timeStamp > t ? timeStamp : t;
+                    // read bloom filter
+                    infile.read(buffer.data(), 1280);
+                    ssTables.push_back(std::make_pair(t, SSTable(l, n, mink, maxk, buffer)));
+                    // read index
+                    infile.read(buffer.data(), n * 12);
+                    ssTables[t].second.addKeySet(buffer.data(), n);
+                    infile.close();
+                }
+            }
+        }
+    }
+    std::sort(ssTables.begin(), ssTables.end(), filter_cmp);
+	timeStamp++;
 }
 
 KVStore::~KVStore()
@@ -53,12 +72,16 @@ KVStore::~KVStore()
  */
 void KVStore::put(uint64_t key, const std::string &s)
 {
-	if (memTable.getSize() + s.size() > MAX_MEM_SIZE) {
-		std::string filename = direct + "Level0" +  std::to_string(timeStamp) + ".sst";
-		std::ofstream out(filename, std::ios::out | std::ios::binary);
-		bloomFilters.push_back(std::make_pair(timeStamp, BloomFilter()));
-		memTable.writeToDisk(direct, timeStamp, bloomFilters.back().second);
+	if (memTable.getSize() + s.size() + 12 > MAX_MEM_SIZE) {
+		std::string filename = direct + "\\level-0\\" +  std::to_string(timeStamp) + ".sst";
+		std::ofstream out(filename, std::ios::out | std::ios::binary | std::ios::trunc);
+		ssTables.push_back(std::make_pair(timeStamp, SSTable()));
+		memTable.writeToDisk(direct, timeStamp, ssTables.back().second);
+        compaction();
 		memTable.reset();
+		memTable.ins(key, s);
+	}
+	else {
 		memTable.ins(key, s);
 	}
 }
@@ -69,9 +92,22 @@ void KVStore::put(uint64_t key, const std::string &s)
 std::string KVStore::get(uint64_t key)
 {
 	std::string res = memTable.get(key);
-	if (res == empty_string) {
-
-	}
+    if (res != "") {
+        return res;
+    }
+    // iterate bloomfilter from end
+    std::for_each(ssTables.rbegin(), ssTables.rend(), [](const auto& p) {
+        if (p.second.contains(key)) {
+            res = p.second.get(key);
+            if (res == "~DELETED~") {
+                return "";
+            }
+            else if (res != "") {
+                return res;
+            }
+        }
+    });
+    return "";
 }
 /**
  * Delete the given key-value pair if it exists.
@@ -79,7 +115,15 @@ std::string KVStore::get(uint64_t key)
  */
 bool KVStore::del(uint64_t key)
 {
-	return memTable.del(key);
+    std::string res = get(key);
+    if (res == "") {
+        return false;
+    }
+    else {
+        put(key, "~DELETED~");
+        return true;
+    }
+    return false;
 }
 
 /**
@@ -88,16 +132,16 @@ bool KVStore::del(uint64_t key)
  */
 void KVStore::reset()
 {
-	if (!fs::remove_all(direct))
-		printf("Error: cannot remove directory %s\n");
 	// delete all files and directs under direct
-	for (auto &level : fs::directory_iterator(direct)) {
-		fs::remove_all(level.path());
-	}
+
 	// reset bloomfilters
-	bloomFilters.clear();
+	ssTables.clear();
 	// reset memTable
 	memTable.reset();
+}
+
+void compaction() {
+
 }
 
 /**

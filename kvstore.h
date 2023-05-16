@@ -1,25 +1,17 @@
 #pragma once
 
 #include "kvstore_api.h"
-#include "skiplist.h"
-#include "bloomfilter.h"
+#include "memtable.h"
+#include "sstable.h"
 #include "utils.h"
-#include <fstream>
 #include <cstdint>
 #include <algorithm>
-#include <experimental/filesystem>
-namespace fs = std::experimental::filesystem;
+
+enum levelMode {
+	Tiering, Leveling
+};
 
 class KVStore : public KVStoreAPI {
-private:
-	SkipList memTable;
-	std::vector<std::pair<uint32_t, BloomFilter>> bloomFilters;
-	std::vector<std::vector<uint32_t>> fileNum;
-	std::string direct;
-	uint64_t timeStamp;
-	uint64_t maxLevel;
-	static constexpr uint32_t MAX_MEM_SIZE = 2 * 1024 * 1024;
-
 public:
 	KVStore(const std::string &dir);
 
@@ -34,4 +26,15 @@ public:
 	void reset() override;
 
 	void scan(uint64_t key1, uint64_t key2, std::list<std::pair<uint64_t, std::string> > &list) override;
+private:
+	void compaction();
+	MemTable memTable;
+	std::vector<std::pair<uint32_t, SSTable>> ssTables;
+	std::vector<std::vector<uint32_t>> levelNode;
+	uint32_t fileLimit[10] = {0};
+	levelMode levelMode[10] = {Tiering};
+	std::string direct;
+	uint64_t timeStamp;
+	uint64_t maxLevel;
+	static constexpr uint32_t MAX_MEM_SIZE = 2 * 1024 * 1024;
 };

@@ -4,8 +4,8 @@
 #include <memory>
 #include <vector>
 #include <fstream>
-#include "bloomfilter.h"
-static const std::string empty_string = "";
+#include <iostream>
+#include "sstable.h"
 
 class SkiplistNode {
 public:
@@ -18,16 +18,22 @@ private:
     static constexpr int MAX_LEVEL = 32;
 };
 
-class SkipList {
+class MemTable {
 public:
     //iniaitlize
-    SkipList() : level(0), size(10272), head(new SkiplistNode(0, "")) {}
+    MemTable() : level(0), size(10272), head(new SkiplistNode(0, "")) {}
+
     void reset();
+
     void ins(uint64_t key, const std::string& val);
+
     bool del(uint64_t key);
+    
     const std::string get(uint64_t key) const;
+
     const int getSize() const;
-    const void writeToDisk(const std::string& filename, uint64_t timeStamp, BloomFilter& filter) const;
+
+    const void writeToDisk(const std::string& filename, uint64_t timeStamp, SSTable& filter) const;
 private:
     uint16_t level;
     uint64_t size;

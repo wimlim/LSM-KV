@@ -1,10 +1,10 @@
-#include "skiplist.h"
+#include "memtable.h"
 
-const int SkipList::getSize() const {
+const int MemTable::getSize() const {
     return size;
 }
 
-const void SkipList::writeToDisk(const std::string& filename, uint64_t timeStamp, BloomFilter& filter) const {
+const void MemTable::writeToDisk(const std::string& filename, uint64_t timeStamp, SSTable& table) const {
     //transform skiplist to bloom filter
     auto x = head->forward[0];
     uint64_t num = 0;
@@ -16,21 +16,34 @@ const void SkipList::writeToDisk(const std::string& filename, uint64_t timeStamp
         num++;
         minkey = key < minkey ? key : minkey;
         maxkey = key > maxkey ? key : maxkey;
-        filter.add(key);
+        table.add(key);
         x = x->forward[0];
     }
-    filter.keyNum = num;
-    filter.minKey = minkey;
-    filter.maxKey = maxkey;
+    table.keyNum = num;
+    table.minKey = minkey;
+    table.maxKey = maxkey;
     // write header
     std::ofstream outfile(filename, std::ios::binary | std::ios::out | std::ios::trunc);
-    outfile << timeStamp << num << minkey << maxkey;
+    if (!outfile.is_open()) {
+        std::cerr << "open file failed" << std::endl;
+        return;
+    }
+    outfile.write(reinterpret_cast<char*>(&timeStamp), sizeof(uint64_t));
+    outfile.write(reinterpret_cast<char*>(&num), sizeof(uint64_t));
+    outfile.write(reinterpret_cast<char*>(&minkey), sizeof(uint64_t));
+    outfile.write(reinterpret_cast<char*>(&maxkey), sizeof(uint64_t));
     // write bloom filter
-    outfile.write(filter.bytes.data(), filter.bytes.size());
+    outfile.write(reinterpret_cast<char*>(&table.bits), sizeof(table.bits));
     // write key and offset
     x = head->forward[0];
+    uint64_t key;
+    uint32_t offset;
     while (x) {
-        outfile << x->key << x->val.size();
+        key = x->key;
+        offset = x->val.size();
+        table.addKeySet(key, offset);
+        outfile.write(reinterpret_cast<char*>(&key), sizeof(uint64_t));
+        outfile.write(reinterpret_cast<char*>(&offset), sizeof(uint32_t));
         x = x->forward[0];
     }
     // write value
@@ -42,7 +55,7 @@ const void SkipList::writeToDisk(const std::string& filename, uint64_t timeStamp
     outfile.close();
 }
 
-void SkipList::reset() {
+void MemTable::reset() {
     auto x = head->forward[0];
     while (x != nullptr) {
         auto tmp = x->forward[0];
@@ -55,7 +68,7 @@ void SkipList::reset() {
         head->forward[i].reset();
 }
 
-void SkipList::ins(uint64_t key, const std::string& val) {
+void MemTable::ins(uint64_t key, const std::string& val) {
     std::vector<std::shared_ptr<SkiplistNode>> update(MAX_LEVEL);
     auto x = head;
     for (int i = level; i >= 0; i--) {
@@ -84,7 +97,7 @@ void SkipList::ins(uint64_t key, const std::string& val) {
     size += 12 + val.size();
 }
 
-bool SkipList::del(uint64_t key) {
+bool MemTable::del(uint64_t key) {
     std::vector<std::shared_ptr<SkiplistNode>> update(MAX_LEVEL);
     auto x = head;
     for (int i = level; i >= 0; i--) {
@@ -94,13 +107,14 @@ bool SkipList::del(uint64_t key) {
     }
     x = x->forward[0];
     if (x != nullptr && x->key == key && x->val != "~DELETE~") {
+        size += 8 - x->val.size();
         x->val = "~DELETE~";
         return true;
     } 
     return false;
 }
 
-const std::string SkipList::get(uint64_t key) const {
+const std::string MemTable::get(uint64_t key) const {
     auto x = head;
     for (int i = level; i >= 0; --i) {
         while (x->forward[i] != nullptr && x->forward[i]->key < key)
@@ -110,10 +124,10 @@ const std::string SkipList::get(uint64_t key) const {
     if (x != nullptr && x->key == key && x->val != "~DELETE~")
         return x->val;
     else
-        return empty_string;
+        return "";
 }
 
-uint32_t SkipList::randomLevel() {
+uint32_t MemTable::randomLevel() {
     static std::mt19937 generator(std::random_device{}());
     static std::uniform_real_distribution<float> distribution(0, 1);
     int lvl = 1;

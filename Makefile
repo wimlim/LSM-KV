@@ -4,11 +4,11 @@ CXXFLAGS = -std=c++14 -Wall
 
 all: correctness persistence
 
-correctness:  bloomfilter.o skiplist.o kvstore.o correctness.o 
+correctness:  sstable.o skiplist.o kvstore.o correctness.o 
 
-persistence: bloomfilter.o skiplist.o kvstore.o persistence.o
+persistence: sstable.o skiplist.o kvstore.o persistence.o
 
-debug: bloomfilter.o skiplist.o debug.o
+debug: sstable.o skiplist.o kvstore.o debug.o
 
 clean:
 	-rm -f correctness persistence debug *.o
