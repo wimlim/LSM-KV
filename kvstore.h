@@ -35,6 +35,5 @@ private:
 	levelMode levelMode[10] = {Tiering};
 	std::string direct;
 	uint64_t timeStamp;
-	uint64_t maxLevel;
 	static constexpr uint32_t MAX_MEM_SIZE = 2 * 1024 * 1024;
 };

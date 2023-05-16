@@ -25,7 +25,8 @@ const void MemTable::writeToDisk(const std::string& filename, uint64_t timeStamp
     // write header
     std::ofstream outfile(filename, std::ios::binary | std::ios::out | std::ios::trunc);
     if (!outfile.is_open()) {
-        std::cerr << "open file failed" << std::endl;
+        //std::cerr << "Error : memTable open file failed" << std::endl;
+        std::cerr << filename << std::endl;
         return;
     }
     outfile.write(reinterpret_cast<char*>(&timeStamp), sizeof(uint64_t));
@@ -36,14 +37,13 @@ const void MemTable::writeToDisk(const std::string& filename, uint64_t timeStamp
     outfile.write(reinterpret_cast<char*>(&table.bits), sizeof(table.bits));
     // write key and offset
     x = head->forward[0];
-    uint64_t key;
-    uint32_t offset;
+    uint32_t offset = 10272 + num * 12;
     while (x) {
         key = x->key;
-        offset = x->val.size();
         table.addKeySet(key, offset);
         outfile.write(reinterpret_cast<char*>(&key), sizeof(uint64_t));
         outfile.write(reinterpret_cast<char*>(&offset), sizeof(uint32_t));
+        offset += x->val.size();
         x = x->forward[0];
     }
     // write value
@@ -95,23 +95,6 @@ void MemTable::ins(uint64_t key, const std::string& val) {
         update[i]->forward[i] = new_node;
     }
     size += 12 + val.size();
-}
-
-bool MemTable::del(uint64_t key) {
-    std::vector<std::shared_ptr<SkiplistNode>> update(MAX_LEVEL);
-    auto x = head;
-    for (int i = level; i >= 0; i--) {
-        while (x->forward[i] != nullptr && x->forward[i]->key < key)
-            x = x->forward[i];
-        update[i] = x;
-    }
-    x = x->forward[0];
-    if (x != nullptr && x->key == key && x->val != "~DELETE~") {
-        size += 8 - x->val.size();
-        x->val = "~DELETE~";
-        return true;
-    } 
-    return false;
 }
 
 const std::string MemTable::get(uint64_t key) const {

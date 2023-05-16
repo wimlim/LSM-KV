@@ -27,8 +27,6 @@ public:
 
     void ins(uint64_t key, const std::string& val);
 
-    bool del(uint64_t key);
-    
     const std::string get(uint64_t key) const;
 
     const int getSize() const;

@@ -1,7 +1,7 @@
 #include "sstable.h"
 
-SSTable::SSTable(uint32_t l, uint32_t n, uint32_t min, uint32_t max, const std::vector<char> &b) :
-            bits(), level(l), keyNum(n), minKey(min), maxKey(max) {
+SSTable::SSTable(uint32_t l, uint32_t t, uint32_t n, uint32_t min, uint32_t max, const std::vector<char> &b) :
+            bits(), level(l), timeStamp(t), keyNum(n), minKey(min), maxKey(max) {
     for (uint32_t i = 0; i < b.size(); i++) {
         for (int j = 0; j < 8; j++) {
             if (b[i] & (1 << j)) {
@@ -45,7 +45,7 @@ void SSTable::addKeySet(const char* buffer, uint64_t len) {
     }
 }
 
-std::string SSTable::get(uint64_t key) {
+std::string SSTable::get(std::string &path, uint64_t key) {
     // divide the keys and find the offset
     uint32_t l = 0, r = index.size(), mid = (l + r) >> 1;
     uint32_t offset;
@@ -64,14 +64,17 @@ std::string SSTable::get(uint64_t key) {
         return "";
     }
     // read the value
-    std::string value;
-    std::ifstream infile(path + std::to_string(level) + "-" + std::to_string(timeStamp) + ".sst", std::ios::binary);
+    std::ifstream infile(path + "\\level-" + std::to_string(level) + "\\" + std::to_string(timeStamp) + ".sst", std::ios::binary);
     if (!infile) {
         std::cerr << "open file error" << std::endl;
         return "";
     }
+    std::string value;
     infile.seekg(offset);
-    infile.read((char*)&value, index[mid + 1].second - offset);
+    if (mid == r - 1)
+        infile >> value;
+    else
+        infile.read(&value[0], index[mid + 1].second - offset);
     infile.close();
     return value;
 }

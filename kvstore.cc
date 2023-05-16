@@ -7,7 +7,7 @@ bool filter_cmp(const std::pair<uint64_t, SSTable> &a, const std::pair<uint64_t,
  * if there is no directory, create one
  * if there are files in the directory, load them into memory
 **/
-KVStore::KVStore(const std::string &dir): KVStoreAPI(dir), timeStamp(0), maxLevel(0), direct(dir), levelNode(10)
+KVStore::KVStore(const std::string &dir): KVStoreAPI(dir), timeStamp(0), direct(dir), levelNode(10)
 {
     if (!utils::dirExists(direct)) {
         utils::mkdir(direct.c_str());
@@ -15,7 +15,7 @@ KVStore::KVStore(const std::string &dir): KVStoreAPI(dir), timeStamp(0), maxLeve
     }
     uint64_t t, n, mink, maxk;
     uint32_t l;
-    std::vector<char> buffer(1280);
+    std::vector<char> buffer(10240);
     // iterate all directories named Level*
     std::vector<std::string> levels;
 	std::vector<std::string> files;
@@ -23,18 +23,18 @@ KVStore::KVStore(const std::string &dir): KVStoreAPI(dir), timeStamp(0), maxLeve
     for (auto &level : levels) {
         if (level.substr(0, 6) == "level-") {
             l = std::stoi(level.substr(6));
-            std::string levelpath = direct + "\\" + level;
+            std::string levelpath = direct + "/" + level;
             utils::scanDir(levelpath, files);
             // iterate all files in the directory
             for (auto &file : files) {
 				// calculate the files under the level
                 levelNode[l].push_back(stoi(file.substr(0, file.length() - 4)));
-                std::string filepath = levelpath + "\\" + file;
+                std::string filepath = levelpath + "/" + file;
                 // load bloom filter
                 if (file.substr(file.length() - 4) == ".sst") {
                     std::ifstream infile(filepath, std::ios::in | std::ios::binary);
                     if (!infile.is_open()) {
-                        printf("Error: cannot open file %s\n", filepath.c_str());
+                        std::cerr << "Error: kvstore open file failed" << std::endl;
                         continue;
                     }
                     printf("%s open\n", filepath.c_str());
@@ -47,8 +47,8 @@ KVStore::KVStore(const std::string &dir): KVStoreAPI(dir), timeStamp(0), maxLeve
                     printf("%d %d %d %d %d\n", l, t, n, mink, maxk);
                     timeStamp = timeStamp > t ? timeStamp : t;
                     // read bloom filter
-                    infile.read(buffer.data(), 1280);
-                    ssTables.push_back(std::make_pair(t, SSTable(l, n, mink, maxk, buffer)));
+                    infile.read(buffer.data(), 10240);
+                    ssTables.push_back(std::make_pair(t, SSTable(l, t, n, mink, maxk, buffer)));
                     // read index
                     infile.read(buffer.data(), n * 12);
                     ssTables[t].second.addKeySet(buffer.data(), n);
@@ -73,7 +73,7 @@ KVStore::~KVStore()
 void KVStore::put(uint64_t key, const std::string &s)
 {
 	if (memTable.getSize() + s.size() + 12 > MAX_MEM_SIZE) {
-		std::string filename = direct + "\\level-0\\" +  std::to_string(timeStamp) + ".sst";
+		std::string filename = direct + "/level-0/" +  std::to_string(timeStamp) + ".sst";
 		std::ofstream out(filename, std::ios::out | std::ios::binary | std::ios::trunc);
 		ssTables.push_back(std::make_pair(timeStamp, SSTable()));
 		memTable.writeToDisk(direct, timeStamp, ssTables.back().second);
@@ -96,9 +96,9 @@ std::string KVStore::get(uint64_t key)
         return res;
     }
     // iterate bloomfilter from end
-    std::for_each(ssTables.rbegin(), ssTables.rend(), [](const auto& p) {
-        if (p.second.contains(key)) {
-            res = p.second.get(key);
+    for (auto it = ssTables.rbegin(); it != ssTables.rend(); it++) {
+        if (it->second.contains(key)) {
+            res = it->second.get(direct, key).c_str();
             if (res == "~DELETED~") {
                 return "";
             }
@@ -106,7 +106,7 @@ std::string KVStore::get(uint64_t key)
                 return res;
             }
         }
-    });
+    }
     return "";
 }
 /**
@@ -133,14 +133,21 @@ bool KVStore::del(uint64_t key)
 void KVStore::reset()
 {
 	// delete all files and directs under direct
-
+    for (int i = 0; i < 10; i++) {
+        std::string levelpath = direct + "\\level-" + std::to_string(i);
+        for (auto &file : levelNode[i]) {
+            std::string filepath = levelpath + "\\" + std::to_string(file) + ".sst";
+            utils::rmfile(filepath.c_str());
+        }
+        utils::rmdir(levelpath.c_str());
+    }
 	// reset bloomfilters
 	ssTables.clear();
 	// reset memTable
 	memTable.reset();
 }
 
-void compaction() {
+void KVStore::compaction() {
 
 }
 
