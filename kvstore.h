@@ -29,7 +29,7 @@ public:
 private:
 	void compaction();
 	MemTable memTable;
-	std::vector<std::pair<uint32_t, SSTable>> ssTables;
+	std::vector<SSTable> ssTables;
 	std::string direct;
 	uint64_t timeStamp;
 	static constexpr uint32_t MAX_MEM_SIZE = 2 * 1024 * 1024;

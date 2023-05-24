@@ -47,11 +47,11 @@ KVStore::KVStore(const std::string &dir): KVStoreAPI(dir), timeStamp(-1), direct
                     timeStamp = timeStamp > t ? timeStamp : t;
                     // read bloom filter
                     infile.read(buffer.data(), 10240);
-                    ssTables.push_back(std::make_pair(t, SSTable(l, t, n, mink, maxk, buffer)));
+                    ssTables.push_back(SSTable(l, t, n, mink, maxk, buffer));
                     // read index
                     infile.read(buffer.data(), n * 12);
                     // print buffer
-                    ssTables[t].second.addKeySet(buffer.data(), n);
+                    ssTables.back().addKeySet(buffer.data(), n);
                     infile.close();
                 }
             }
@@ -62,15 +62,14 @@ KVStore::KVStore(const std::string &dir): KVStoreAPI(dir), timeStamp(-1), direct
     if (!utils::dirExists(level0)) {
         utils::mkdir(level0.c_str());
     }
-    std::sort(ssTables.begin(), ssTables.end(), filter_cmp);
 	timeStamp++;
 }
 
 KVStore::~KVStore()
 {
     std::string filename = direct + "/level-0/" +  std::to_string(timeStamp) + ".sst";
-    ssTables.push_back(std::make_pair(timeStamp, SSTable()));
-    memTable.writeToDisk(filename, timeStamp, ssTables.back().second);
+    ssTables.push_back(SSTable());
+    memTable.writeToDisk(filename, timeStamp, ssTables.back());
     compaction();
 }
 
@@ -82,8 +81,8 @@ void KVStore::put(uint64_t key, const std::string &s)
 {
 	if (memTable.getSize() + s.size() + 12 > MAX_MEM_SIZE) {
 		std::string filename = direct + "/level-0/" +  std::to_string(timeStamp) + ".sst";
-		ssTables.push_back(std::make_pair(timeStamp, SSTable()));
-		memTable.writeToDisk(filename, timeStamp, ssTables.back().second);
+		ssTables.push_back(SSTable());
+		memTable.writeToDisk(filename, timeStamp, ssTables.back());
         compaction();
         timeStamp++;
 		memTable.reset();
@@ -108,8 +107,8 @@ std::string KVStore::get(uint64_t key)
     }
     // iterate bloomfilter from end
     for (auto it = ssTables.rbegin(); it != ssTables.rend(); it++) {
-        if (it->second.contains(key)) {
-            res = it->second.get(direct, key).c_str();
+        if (it->contains(key)) {
+            res = it->get(direct, key).c_str();
             if (res == "~DELETED~") {
                 return "";
             }
