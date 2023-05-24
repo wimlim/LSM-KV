@@ -22,6 +22,7 @@ public:
     std::string get(std::string &path, uint64_t key);
 protected:
     friend class MemTable;
+    friend class KVStore;
     uint32_t level;
     uint32_t timeStamp;
     uint32_t keyNum;

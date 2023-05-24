@@ -1,8 +1,4 @@
 #include "kvstore.h"
-
-bool filter_cmp(const std::pair<uint64_t, SSTable> &a, const std::pair<uint64_t, SSTable> &b) {
-    return a.first < b.first;
-}
 /**
  * if there is no directory, create one
  * if there are files in the directory, load them into memory
@@ -56,7 +52,9 @@ KVStore::KVStore(const std::string &dir): KVStoreAPI(dir), timeStamp(0), direct(
             }
         }
     }
-
+    std::sort(ssTables.begin(), ssTables.end(), [](const SSTable &a, const SSTable &b) {
+        return a.timeStamp < b.timeStamp;
+    });
     std::string level0 = direct + "/level-0";
     if (!utils::dirExists(level0)) {
         utils::mkdir(level0.c_str());
