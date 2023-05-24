@@ -51,13 +51,18 @@ KVStore::KVStore(const std::string &dir): KVStoreAPI(dir), timeStamp(-1), direct
                     ssTables.push_back(std::make_pair(t, SSTable(l, t, n, mink, maxk, buffer)));
                     // read index
                     infile.read(buffer.data(), n * 12);
+                    // print buffer
                     ssTables[t].second.addKeySet(buffer.data(), n);
                     infile.close();
                 }
             }
         }
     }
-    initLevel();
+
+    std::string level0 = direct + "/level-0";
+    if (!utils::dirExists(level0)) {
+        utils::mkdir(level0.c_str());
+    }
     std::sort(ssTables.begin(), ssTables.end(), filter_cmp);
 	timeStamp++;
 }
@@ -65,9 +70,7 @@ KVStore::KVStore(const std::string &dir): KVStoreAPI(dir), timeStamp(-1), direct
 void KVStore::initLevel() {
     for (int i = 0; i < 1; i++) {
         std::string levelpath = direct + "/level-" + std::to_string(i);
-        if (!utils::dirExists(levelpath)) {
-            utils::mkdir(levelpath.c_str());
-        }
+
     }
 }
 
@@ -147,14 +150,16 @@ bool KVStore::del(uint64_t key)
  */
 void KVStore::reset()
 {
+    std::vector<std::string> files;
 	// delete all files and directs under direct
-    for (int i = 0; i < 10; i++) {
+    for (int i = 1; i < 10; i++) {
         std::string levelpath = direct + "/level-" + std::to_string(i);
-        for (auto &file : levelNode[i]) {
-            std::string filepath = levelpath + "/" + std::to_string(file) + ".sst";
+        utils::scanDir(levelpath, files);
+        for (auto &file : files) {
+            std::string filepath = levelpath + "/" + file;
             utils::rmfile(filepath.c_str());
         }
-        //utils::rmdir(levelpath.c_str());
+        utils::rmdir(levelpath.c_str());
     }
 	// reset bloomfilters
 	ssTables.clear();
