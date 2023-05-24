@@ -7,12 +7,12 @@ bool filter_cmp(const std::pair<uint64_t, SSTable> &a, const std::pair<uint64_t,
  * if there is no directory, create one
  * if there are files in the directory, load them into memory
 **/
-KVStore::KVStore(const std::string &dir): KVStoreAPI(dir), timeStamp(-1), direct(dir), levelNode(10)
+KVStore::KVStore(const std::string &dir): KVStoreAPI(dir), timeStamp(-1), direct(dir)
 {
     if (!utils::dirExists(direct)) {
         utils::mkdir(direct.c_str());
         timeStamp = 0;
-        initLevel();
+        utils::mkdir((direct + "/level-0").c_str());
         return;
     }
     uint64_t t, n, mink, maxk;
@@ -24,13 +24,12 @@ KVStore::KVStore(const std::string &dir): KVStoreAPI(dir), timeStamp(-1), direct
     utils::scanDir(direct, levels);
     for (auto &level : levels) {
         if (level.substr(0, 6) == "level-") {
-            l = std::stoi(level.substr(6));
+            l = std::stoi(level.substr(6, level.size() - 6));
             std::string levelpath = direct + "/" + level;
             utils::scanDir(levelpath, files);
             // iterate all files in the directory
             for (auto &file : files) {
 				// calculate the files under the level
-                levelNode[l].push_back(stoi(file.substr(0, file.length() - 4)));
                 std::string filepath = levelpath + "/" + file;
                 // load bloom filter
                 if (file.substr(file.length() - 4) == ".sst") {
@@ -65,13 +64,6 @@ KVStore::KVStore(const std::string &dir): KVStoreAPI(dir), timeStamp(-1), direct
     }
     std::sort(ssTables.begin(), ssTables.end(), filter_cmp);
 	timeStamp++;
-}
-
-void KVStore::initLevel() {
-    for (int i = 0; i < 1; i++) {
-        std::string levelpath = direct + "/level-" + std::to_string(i);
-
-    }
 }
 
 KVStore::~KVStore()

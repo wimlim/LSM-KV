@@ -27,13 +27,9 @@ public:
 
 	void scan(uint64_t key1, uint64_t key2, std::list<std::pair<uint64_t, std::string> > &list) override;
 private:
-	void initLevel();
 	void compaction();
 	MemTable memTable;
 	std::vector<std::pair<uint32_t, SSTable>> ssTables;
-	std::vector<std::vector<uint32_t>> levelNode;
-	uint32_t fileLimit[10] = {0};
-	levelMode levelMode[10] = {Tiering};
 	std::string direct;
 	uint64_t timeStamp;
 	static constexpr uint32_t MAX_MEM_SIZE = 2 * 1024 * 1024;
