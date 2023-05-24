@@ -30,6 +30,7 @@ private:
 	void compaction();
 	MemTable memTable;
 	std::vector<SSTable> ssTables;
+	uint32_t maxLevel;
 	std::string direct;
 	uint64_t timeStamp;
 	static constexpr uint32_t MAX_MEM_SIZE = 2 * 1024 * 1024;

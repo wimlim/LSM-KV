@@ -7,7 +7,7 @@ bool filter_cmp(const std::pair<uint64_t, SSTable> &a, const std::pair<uint64_t,
  * if there is no directory, create one
  * if there are files in the directory, load them into memory
 **/
-KVStore::KVStore(const std::string &dir): KVStoreAPI(dir), timeStamp(-1), direct(dir)
+KVStore::KVStore(const std::string &dir): KVStoreAPI(dir), timeStamp(-1), direct(dir), maxLevel(0)
 {
     if (!utils::dirExists(direct)) {
         utils::mkdir(direct.c_str());
@@ -80,11 +80,11 @@ KVStore::~KVStore()
 void KVStore::put(uint64_t key, const std::string &s)
 {
 	if (memTable.getSize() + s.size() + 12 > MAX_MEM_SIZE) {
+        timeStamp++;
 		std::string filename = direct + "/level-0/" +  std::to_string(timeStamp) + ".sst";
 		ssTables.push_back(SSTable());
 		memTable.writeToDisk(filename, timeStamp, ssTables.back());
         compaction();
-        timeStamp++;
 		memTable.reset();
 		memTable.ins(key, s);
 	}
