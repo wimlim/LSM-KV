@@ -7,11 +7,10 @@ bool filter_cmp(const std::pair<uint64_t, SSTable> &a, const std::pair<uint64_t,
  * if there is no directory, create one
  * if there are files in the directory, load them into memory
 **/
-KVStore::KVStore(const std::string &dir): KVStoreAPI(dir), timeStamp(-1), direct(dir), maxLevel(0)
+KVStore::KVStore(const std::string &dir): KVStoreAPI(dir), timeStamp(0), direct(dir), maxLevel(0)
 {
     if (!utils::dirExists(direct)) {
         utils::mkdir(direct.c_str());
-        timeStamp = 0;
         utils::mkdir((direct + "/level-0").c_str());
         return;
     }
@@ -62,7 +61,6 @@ KVStore::KVStore(const std::string &dir): KVStoreAPI(dir), timeStamp(-1), direct
     if (!utils::dirExists(level0)) {
         utils::mkdir(level0.c_str());
     }
-	timeStamp++;
 }
 
 KVStore::~KVStore()
