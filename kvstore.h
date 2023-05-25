@@ -5,6 +5,7 @@
 #include "sstable.h"
 #include "utils.h"
 #include <cstdint>
+#include <fstream>
 #include <algorithm>
 
 enum levelMode {
@@ -29,7 +30,7 @@ public:
 private:
 	void compaction();
 	MemTable memTable;
-	std::vector<SSTable> ssTables;
+	std::vector<std::vector<SSTable>> ssTables;
 	uint32_t maxLevel;
 	std::string direct;
 	uint64_t timeStamp;

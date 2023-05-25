@@ -3,7 +3,7 @@
  * if there is no directory, create one
  * if there are files in the directory, load them into memory
 **/
-KVStore::KVStore(const std::string &dir): KVStoreAPI(dir), timeStamp(0), direct(dir), maxLevel(0)
+KVStore::KVStore(const std::string &dir): KVStoreAPI(dir), timeStamp(0), direct(dir), maxLevel(0), ssTables(20)
 {
     if (!utils::dirExists(direct)) {
         utils::mkdir(direct.c_str());
@@ -20,6 +20,7 @@ KVStore::KVStore(const std::string &dir): KVStoreAPI(dir), timeStamp(0), direct(
     for (auto &level : levels) {
         if (level.substr(0, 6) == "level-") {
             l = std::stoi(level.substr(6, level.size() - 6));
+            maxLevel = maxLevel > l ? maxLevel : l;
             std::string levelpath = direct + "/" + level;
             utils::scanDir(levelpath, files);
             // iterate all files in the directory
@@ -42,19 +43,20 @@ KVStore::KVStore(const std::string &dir): KVStoreAPI(dir), timeStamp(0), direct(
                     timeStamp = timeStamp > t ? timeStamp : t;
                     // read bloom filter
                     infile.read(buffer.data(), 10240);
-                    ssTables.push_back(SSTable(l, t, n, mink, maxk, buffer));
+                    ssTables[0].push_back(SSTable(l, t, n, mink, maxk, buffer));
                     // read index
                     infile.read(buffer.data(), n * 12);
                     // print buffer
-                    ssTables.back().addKeySet(buffer.data(), n);
+                    ssTables[0].back().addKeySet(buffer.data(), n);
                     infile.close();
                 }
             }
         }
     }
-    std::sort(ssTables.begin(), ssTables.end(), [](const SSTable &a, const SSTable &b) {
-        return a.timeStamp < b.timeStamp;
-    });
+    for (int i = 0; i <= maxLevel; i++)
+        std::sort(ssTables[i].begin(), ssTables[i].end(), [](const SSTable &a, const SSTable &b) {
+            return a.timeStamp < b.timeStamp;
+        });
     std::string level0 = direct + "/level-0";
     if (!utils::dirExists(level0)) {
         utils::mkdir(level0.c_str());
@@ -64,8 +66,8 @@ KVStore::KVStore(const std::string &dir): KVStoreAPI(dir), timeStamp(0), direct(
 KVStore::~KVStore()
 {
     std::string filename = direct + "/level-0/" +  std::to_string(timeStamp) + ".sst";
-    ssTables.push_back(SSTable());
-    memTable.writeToDisk(filename, timeStamp, ssTables.back());
+    ssTables[0].push_back(SSTable());
+    memTable.writeToDisk(filename, timeStamp, ssTables[0].back());
     compaction();
 }
 
@@ -78,8 +80,8 @@ void KVStore::put(uint64_t key, const std::string &s)
 	if (memTable.getSize() + s.size() + 12 > MAX_MEM_SIZE) {
         timeStamp++;
 		std::string filename = direct + "/level-0/" +  std::to_string(timeStamp) + ".sst";
-		ssTables.push_back(SSTable());
-		memTable.writeToDisk(filename, timeStamp, ssTables.back());
+		ssTables[0].push_back(SSTable());
+		memTable.writeToDisk(filename, timeStamp, ssTables[0].back());
         compaction();
 		memTable.reset();
 		memTable.ins(key, s);
@@ -102,14 +104,16 @@ std::string KVStore::get(uint64_t key)
         return res;
     }
     // iterate bloomfilter from end
-    for (auto it = ssTables.rbegin(); it != ssTables.rend(); it++) {
-        if (it->contains(key)) {
-            res = it->get(direct, key).c_str();
-            if (res == "~DELETED~") {
-                return "";
-            }
-            else if (res != "") {
-                return res;
+    for (int i = maxLevel; i >= 0; i--) {
+        for (auto it = ssTables[i].rbegin(); it != ssTables[i].rend(); it++) {
+            if (it->contains(key)) {
+                res = it->get(direct, key).c_str();
+                if (res == "~DELETED~") {
+                    return "";
+                }
+                else if (res != "") {
+                    return res;
+                }
             }
         }
     }
@@ -155,7 +159,41 @@ void KVStore::reset()
 }
 
 void KVStore::compaction() {
-
+    return;
+    if (ssTables[0].size() < 3) {
+        return;
+    }
+    uint32_t minkey = 0xffffffff;
+    uint32_t maxkey = 0;
+    std::vector<SSTable> oldSSTables;
+    // deal with level-0
+    auto it = ssTables[0].begin();
+    while (it != ssTables[0].end()) {
+        minkey = minkey < it->minKey ? minkey : it->minKey;
+        maxkey = maxkey > it->maxKey ? maxkey : it->maxKey;
+        oldSSTables.push_back(*it);
+        it = ssTables[0].erase(it);
+    }
+    // deal with level-a from minkey to maxkey
+    it = ssTables[1].begin();
+    while (it != ssTables[1].end()) {
+        if (it->minKey >= minkey || it->maxKey <= maxkey) {
+            oldSSTables.push_back(*it);
+            it = ssTables[1].erase(it);
+        }
+        else {
+            it++;
+        }
+    }
+    // merge sort oldSSTables
+    std::sort(oldSSTables.begin(), oldSSTables.end(), [](const SSTable &a, const SSTable &b) {
+        return a.timeStamp > b.timeStamp;
+    });
+    std::vector<std::pair<uint64_t, std::string>> keySet;
+    for (auto &sst : oldSSTables) {
+        std::vector<std::pair<uint64_t, std::string>> buffer(n);
+        
+    }
 }
 
 /**
