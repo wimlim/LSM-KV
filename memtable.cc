@@ -24,6 +24,7 @@ const void MemTable::writeToDisk(const std::string& filename, uint64_t timeStamp
     table.maxKey = maxkey;
     table.level = 0;
     table.timeStamp = timeStamp;
+    table.id = timeStamp;
     // write header
     std::ofstream outfile(filename, std::ios::binary | std::ios::out | std::ios::trunc);
     if (!outfile.is_open()) {

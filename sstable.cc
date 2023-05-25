@@ -1,7 +1,7 @@
 #include "sstable.h"
 
-SSTable::SSTable(uint32_t l, uint32_t t, uint32_t n, uint32_t min, uint32_t max, const std::vector<char> &b) :
-            bits(), level(l), timeStamp(t), keyNum(n), minKey(min), maxKey(max) {
+SSTable::SSTable(uint32_t l, uint32_t i, uint32_t t, uint32_t n, uint32_t min, uint32_t max, const std::vector<char> &b) :
+            bits(), level(l), id(i), timeStamp(t), keyNum(n), minKey(min), maxKey(max) {
     for (uint32_t i = 0; i < b.size(); i++) {
         for (int j = 0; j < 8; j++) {
             if (b[i] & (1 << j)) {

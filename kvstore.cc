@@ -11,7 +11,7 @@ KVStore::KVStore(const std::string &dir): KVStoreAPI(dir), timeStamp(0), direct(
         return;
     }
     uint64_t t, n, mink, maxk;
-    uint32_t l;
+    uint32_t l, id;
     std::vector<char> buffer(10240);
     // iterate all directories named Level*
     std::vector<std::string> levels;
@@ -29,6 +29,7 @@ KVStore::KVStore(const std::string &dir): KVStoreAPI(dir), timeStamp(0), direct(
                 std::string filepath = levelpath + "/" + file;
                 // load bloom filter
                 if (file.substr(file.length() - 4) == ".sst") {
+                    id = std::stoi(file.substr(0, file.length() - 4));
                     std::ifstream infile(filepath, std::ios::in | std::ios::binary);
                     if (!infile.is_open()) {
                         std::cerr << "Error: kvstore open file failed" << std::endl;
@@ -43,7 +44,7 @@ KVStore::KVStore(const std::string &dir): KVStoreAPI(dir), timeStamp(0), direct(
                     timeStamp = timeStamp > t ? timeStamp : t;
                     // read bloom filter
                     infile.read(buffer.data(), 10240);
-                    ssTables[0].push_back(SSTable(l, t, n, mink, maxk, buffer));
+                    ssTables[0].push_back(SSTable(l, id, t, n, mink, maxk, buffer));
                     // read index
                     infile.read(buffer.data(), n * 12);
                     // print buffer
@@ -191,7 +192,6 @@ void KVStore::compaction() {
     });
     std::vector<std::pair<uint64_t, std::string>> keySet;
     for (auto &sst : oldSSTables) {
-        std::vector<std::pair<uint64_t, std::string>> buffer(n);
         
     }
 }

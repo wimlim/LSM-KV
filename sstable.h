@@ -10,7 +10,7 @@ class SSTable {
 public:
     SSTable() : bits() {}
 
-    SSTable(uint32_t l, uint32_t t, uint32_t n, uint32_t min, uint32_t max, const std::vector<char> &bytes);
+    SSTable(uint32_t l, uint32_t i, uint32_t t, uint32_t n, uint32_t min, uint32_t max, const std::vector<char> &bytes);
 
     void add(uint64_t key);
 
@@ -24,6 +24,7 @@ protected:
     friend class MemTable;
     friend class KVStore;
     uint32_t level;
+    uint32_t id;
     uint32_t timeStamp;
     uint32_t keyNum;
     uint32_t minKey;
