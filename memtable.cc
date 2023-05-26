@@ -22,7 +22,7 @@ const void MemTable::writeToDisk(const std::string& filename, uint64_t timeStamp
     table.keyNum = num;
     table.minKey = minkey;
     table.maxKey = maxkey;
-    table.level = 0;
+    table.pathname = filename;
     table.timeStamp = timeStamp;
     table.id = timeStamp;
     // write header

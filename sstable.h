@@ -10,20 +10,21 @@ class SSTable {
 public:
     SSTable() : bits() {}
 
-    SSTable(uint32_t l, uint32_t i, uint32_t t, uint32_t n, uint32_t min, uint32_t max, const std::vector<char> &bytes);
+    SSTable(std::string path, uint32_t i, uint32_t t, uint32_t n, uint32_t min, uint32_t max, const std::vector<char> &bytes);
 
     void add(uint64_t key);
 
     void addKeySet(uint64_t key, uint32_t offset);
     void addKeySet(const char* buffer, uint64_t len);
+    void getAll(std::vector<std::pair<uint64_t, std::string>> &set);
 
     bool contains(uint64_t key);
 
-    std::string get(std::string &path, uint64_t key);
+    std::string get(uint64_t key);
 protected:
     friend class MemTable;
     friend class KVStore;
-    uint32_t level;
+    std::string pathname;
     uint32_t id;
     uint32_t timeStamp;
     uint32_t keyNum;

@@ -44,7 +44,7 @@ KVStore::KVStore(const std::string &dir): KVStoreAPI(dir), timeStamp(0), direct(
                     timeStamp = timeStamp > t ? timeStamp : t;
                     // read bloom filter
                     infile.read(buffer.data(), 10240);
-                    ssTables[0].push_back(SSTable(l, id, t, n, mink, maxk, buffer));
+                    ssTables[0].push_back(SSTable(filepath, id, t, n, mink, maxk, buffer));
                     // read index
                     infile.read(buffer.data(), n * 12);
                     // print buffer
@@ -105,10 +105,10 @@ std::string KVStore::get(uint64_t key)
         return res;
     }
     // iterate bloomfilter from end
-    for (int i = maxLevel; i >= 0; i--) {
+    for (int i = 0; i <= maxLevel; i++) {
         for (auto it = ssTables[i].rbegin(); it != ssTables[i].rend(); it++) {
             if (it->contains(key)) {
-                res = it->get(direct, key).c_str();
+                res = it->get(key).c_str();
                 if (res == "~DELETED~") {
                     return "";
                 }
@@ -175,7 +175,7 @@ void KVStore::compaction() {
         oldSSTables.push_back(*it);
         it = ssTables[0].erase(it);
     }
-    // deal with level-a from minkey to maxkey
+    // deal with level-1 from minkey to maxkey
     it = ssTables[1].begin();
     while (it != ssTables[1].end()) {
         if (it->minKey >= minkey || it->maxKey <= maxkey) {
@@ -190,9 +190,27 @@ void KVStore::compaction() {
     std::sort(oldSSTables.begin(), oldSSTables.end(), [](const SSTable &a, const SSTable &b) {
         return a.timeStamp > b.timeStamp;
     });
-    std::vector<std::pair<uint64_t, std::string>> keySet;
+    std::map<uint64_t, std::string> keySet;
+    std::vector<std::pair<uint64_t, std::string>> tmpSet;
+    // iterate oldSSTables
     for (auto &sst : oldSSTables) {
-        
+        sst.getAll(tmpSet);
+        // iterate tmpSet
+        for (auto &set : tmpSet) {
+            if (keySet.find(set.first) == keySet.end()) {
+                if (maxLevel == 0 && set.second == "~DELETED~") {
+                    continue;
+                }
+                keySet[set.first] = set.second;
+            }
+        }
+    }
+
+    for (int i = 1; i <= maxLevel; i++) {
+        if (ssTables[i].size() <= (2 << i)) {
+            break;
+        }
+
     }
 }
 

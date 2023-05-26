@@ -1,7 +1,7 @@
 #include "sstable.h"
 
-SSTable::SSTable(uint32_t l, uint32_t i, uint32_t t, uint32_t n, uint32_t min, uint32_t max, const std::vector<char> &b) :
-            bits(), level(l), id(i), timeStamp(t), keyNum(n), minKey(min), maxKey(max) {
+SSTable::SSTable(std::string path, uint32_t i, uint32_t t, uint32_t n, uint32_t min, uint32_t max, const std::vector<char> &b) :
+            bits(), pathname(path), id(i), timeStamp(t), keyNum(n), minKey(min), maxKey(max) {
     for (uint32_t i = 0; i < b.size(); i++) {
         for (int j = 0; j < 8; j++) {
             if (b[i] & (1 << j)) {
@@ -45,7 +45,7 @@ void SSTable::addKeySet(const char* buffer, uint64_t len) {
     }
 }
 
-std::string SSTable::get(std::string &path, uint64_t key) {
+std::string SSTable::get(uint64_t key) {
     // divide the keys and find the offset
     uint32_t l = 0, r = index.size(), mid = (l + r) >> 1;
     uint32_t offset;
@@ -64,7 +64,6 @@ std::string SSTable::get(std::string &path, uint64_t key) {
         return "";
     }
     // read the value
-    std::string pathname = path + "/level-" + std::to_string(level) + "/" + std::to_string(timeStamp) + ".sst";
     std::ifstream infile(pathname, std::ios::binary);
     if (!infile) {
         std::cerr << "ssTable open file error" << std::endl;
@@ -83,4 +82,30 @@ std::string SSTable::get(std::string &path, uint64_t key) {
     }
     infile.close();
     return value;
+}
+
+void SSTable::getAll(std::vector<std::pair<uint64_t, std::string>> &set) {
+    std::ifstream infile(pathname, std::ios::binary);
+    if (!infile) {
+        std::cerr << "ssTable open file error" << std::endl;
+        return;
+    }
+    uint32_t offset = index[0].second;
+    uint32_t len;
+    infile.seekg(offset);
+    for (int i = 0; i < index.size(); i++) {
+        if (i == (index.size() - 1)) {
+            std::string value;
+            infile >> value;
+            set.push_back(std::make_pair(index[i].first, value));
+        }
+        else {
+            len = index[i + 1].second - offset;
+            char buffer[len];
+            infile.read(buffer, len);
+            set.push_back(std::make_pair(index[i].first, std::string(buffer, len)));
+        }
+        offset += len;
+    }
+    infile.close();
 }
