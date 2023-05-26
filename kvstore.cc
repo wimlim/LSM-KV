@@ -54,7 +54,6 @@ KVStore::KVStore(const std::string &dir): KVStoreAPI(dir), timeStamp(0), direct(
             }
         }
     }
-
     std::string level0 = direct + "/level-0";
     if (!utils::dirExists(level0)) {
         utils::mkdir(level0.c_str());
@@ -102,9 +101,15 @@ std::string KVStore::get(uint64_t key)
     if (res != "") {
         return res;
     }
+    // sort ssTables as timestamp
+    for (int i = 0; i <= maxLevel; i++) {
+        std::sort(ssTables[i].begin(), ssTables[i].end(), [](SSTable &a, SSTable &b) {
+            return a.timeStamp > b.timeStamp;
+        });
+    }
     // iterate bloomfilter from end
     for (int i = 0; i <= maxLevel; i++) {
-        for (auto it = ssTables[i].rbegin(); it != ssTables[i].rend(); it++) {
+        for (auto it = ssTables[i].begin(); it != ssTables[i].end(); it++) {
             if (it->contains(key)) {
                 res = it->get(key).c_str();
                 if (res == "~DELETED~") {
@@ -195,7 +200,6 @@ void KVStore::compaction() {
     std::vector<std::pair<uint64_t, std::string>> tmpSet;
     // iterate oldSSTables
     for (auto &sst : oldSSTables) {
-        printf("%d\n", sst.timeStamp);
         sst.getAll(tmpSet);
         std::string filepath = sst.pathname;
         utils::rmfile((filepath).c_str());

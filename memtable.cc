@@ -40,7 +40,6 @@ const void MemTable::writeToDisk(const std::string& filename, uint64_t timeStamp
     // write key and offset
     x = head->forward[0];
     uint32_t offset = 10272 + num * 12;
-    // printf the pos of outfile
     while (x) {
         key = x->key;
         table.addKeySet(key, offset);

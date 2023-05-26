@@ -2,13 +2,7 @@
 
 SSTable::SSTable(std::string path, uint32_t i, uint32_t t, uint32_t n, uint32_t min, uint32_t max, const std::vector<char> &b) :
             index(), bits(), pathname(path), id(i), timeStamp(t), keyNum(n), minKey(min), maxKey(max) {
-    for (uint32_t i = 0; i < 1280; i++) {
-        for (int j = 0; j < 8; j++) {
-            if (b[i] & (1 << j)) {
-                bits.set(i * 8 + j);
-            }
-        }
-    }
+    memcpy(&bits, b.data(), 10240);
 }
 
 void SSTable::add(uint64_t key) {
