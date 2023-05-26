@@ -24,10 +24,11 @@ KVStore::KVStore(const std::string &dir): KVStoreAPI(dir), timeStamp(0), direct(
             std::string levelpath = direct + "/" + level;
             utils::scanDir(levelpath, files);
             // iterate all files in the directory
-            for (auto &file : files) {
-				// calculate the files under the level
+            for (int i = 0; i < files.size(); i++) {
+                std::string file = files[i];
                 std::string filepath = levelpath + "/" + file;
                 // load bloom filter
+                printf("Loading %s\n", filepath.c_str());
                 if (file.substr(file.length() - 4) == ".sst") {
                     id = std::stoi(file.substr(0, file.length() - 4));
                     std::ifstream infile(filepath, std::ios::in | std::ios::binary);
@@ -44,11 +45,10 @@ KVStore::KVStore(const std::string &dir): KVStoreAPI(dir), timeStamp(0), direct(
                     timeStamp = timeStamp > t ? timeStamp : t;
                     // read bloom filter
                     infile.read(buffer.data(), 10240);
-                    ssTables[0].push_back(SSTable(filepath, id, t, n, mink, maxk, buffer));
+                    ssTables[l].push_back(SSTable(filepath, id, t, n, mink, maxk, buffer));
                     // read index
                     infile.read(buffer.data(), n * 12);
-                    // print buffer
-                    ssTables[0].back().addKeySet(buffer.data(), n);
+                    ssTables[l].back().addKeySet(buffer.data(), n);
                     infile.close();
                 }
             }
@@ -160,7 +160,6 @@ void KVStore::reset()
 }
 
 void KVStore::compaction() {
-    return;
     if (ssTables[0].size() < 3) {
         return;
     }
