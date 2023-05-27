@@ -4,13 +4,19 @@ const int MemTable::getSize() const {
     return size;
 }
 
+#include <sstream>
+
 const void MemTable::writeToDisk(const std::string& filename, uint64_t timeStamp, SSTable& table) const {
-    //transform skiplist to bloom filter
+    // transform skiplist to bloom filter
     auto x = head->forward[0];
     uint64_t num = 0;
     uint64_t key;
     uint64_t minkey = 0xffffffffffffffff;
     uint64_t maxkey = 0;
+    
+    // Create buffer for writing
+    std::ostringstream buffer;
+    
     while (x) {
         key = x->key;
         num++;
@@ -25,37 +31,46 @@ const void MemTable::writeToDisk(const std::string& filename, uint64_t timeStamp
     table.pathname = filename;
     table.timeStamp = timeStamp;
     table.id = timeStamp;
-    // write header
-    std::ofstream outfile(filename, std::ios::binary | std::ios::out | std::ios::trunc);
-    if (!outfile.is_open()) {
-        std::cerr << "Error : memTable open file " << filename << " failed" << std::endl;
-        return;
-    }
-    outfile.write(reinterpret_cast<char*>(&timeStamp), sizeof(uint64_t));
-    outfile.write(reinterpret_cast<char*>(&num), sizeof(uint64_t));
-    outfile.write(reinterpret_cast<char*>(&minkey), sizeof(uint64_t));
-    outfile.write(reinterpret_cast<char*>(&maxkey), sizeof(uint64_t));
-    // write bloom filter
-    outfile.write(reinterpret_cast<char*>(&table.bits), sizeof(table.bits));
-    // write key and offset
+    
+    // Write header to buffer
+    buffer.write(reinterpret_cast<const char*>(&timeStamp), sizeof(uint64_t));
+    buffer.write(reinterpret_cast<const char*>(&num), sizeof(uint64_t));
+    buffer.write(reinterpret_cast<const char*>(&minkey), sizeof(uint64_t));
+    buffer.write(reinterpret_cast<const char*>(&maxkey), sizeof(uint64_t));
+    
+    // Write bloom filter to buffer
+    buffer.write(reinterpret_cast<const char*>(&table.bits), sizeof(table.bits));
+    
+    // Write key and offset to buffer
     x = head->forward[0];
     uint32_t offset = 10272 + num * 12;
     while (x) {
         key = x->key;
         table.addKeySet(key, offset);
-        outfile.write(reinterpret_cast<char*>(&key), sizeof(uint64_t));
-        outfile.write(reinterpret_cast<char*>(&offset), sizeof(uint32_t));
+        buffer.write(reinterpret_cast<const char*>(&key), sizeof(uint64_t));
+        buffer.write(reinterpret_cast<const char*>(&offset), sizeof(uint32_t));
         offset += x->val.size();
         x = x->forward[0];
     }
-    // write value
+    
+    // Write value to buffer
     x = head->forward[0];
     while (x) {
-        outfile.write(x->val.data(), x->val.size());
+        buffer.write(x->val.data(), x->val.size());
         x = x->forward[0];
     }
+    
+    // Open file and write buffer to disk
+    std::ofstream outfile(filename, std::ios::binary | std::ios::out | std::ios::trunc);
+    if (!outfile.is_open()) {
+        std::cerr << "Error : memTable open file " << filename << " failed" << std::endl;
+        return;
+    }
+    
+    outfile.write(buffer.str().c_str(), buffer.str().length());
     outfile.close();
 }
+
 
 void MemTable::reset() {
     auto x = head->forward[0];
@@ -64,7 +79,7 @@ void MemTable::reset() {
         x.reset();
         x = tmp;
     }
-    size = 0;
+    size = 10272;
     level = 0;
     for (int i = 0; i < MAX_LEVEL; i++)
         head->forward[i].reset();
