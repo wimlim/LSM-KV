@@ -100,9 +100,14 @@ std::string KVStore::get(uint64_t key)
     if (res != "") {
         return res;
     }
+    //printf("-------------------\n");
     // iterate bloomfilter from end
     for (int i = 0; i <= maxLevel; i++) {
+        std::sort(ssTables[i].begin(), ssTables[i].end(), [](SSTable &a, SSTable &b) { 
+            return a.timeStamp > b.timeStamp;
+        });
         for (auto it = ssTables[i].begin(); it != ssTables[i].end(); it++) {
+            //printf("%d ", it->timeStamp);
             if (it->contains(key)) {
                 res = it->get(key).c_str();
                 if (res == "~DELETED~") {
@@ -113,7 +118,9 @@ std::string KVStore::get(uint64_t key)
                 }
             }
         }
+        //printf("\n");
     }
+    
     return "";
 }
 /**
@@ -149,9 +156,9 @@ void KVStore::reset()
         }
         utils::rmdir(levelpath.c_str());
     }
-	// reset bloomfilters
     timeStamp = 0;
     maxLevel = 0;
+    // reset bloomfilters
 	ssTables.clear();
 	// reset memTable
 	memTable.reset();
