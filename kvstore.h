@@ -25,7 +25,7 @@ public:
 	void scan(uint64_t key1, uint64_t key2, std::list<std::pair<uint64_t, std::string> > &list) override;
 private:
 	void compaction();
-	void selectCompaction(int level, int l, int r, std::vector<uint32_t> &idlist, std::map<uint64_t, std::string> &keyset);
+	int selectCompaction(int level, int l, int r, std::vector<uint32_t> &idlist, std::map<uint64_t, std::string> &keyset);
 	void compactionLeveling(int level, int timestamp, const std::vector<uint32_t> &idlist, const std::map<uint64_t, std::string> &keyset);
 	MemTable memTable;
 	std::vector<std::vector<SSTable>> ssTables;

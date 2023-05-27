@@ -22,16 +22,16 @@ KVStore::KVStore(const std::string &dir): KVStoreAPI(dir), timeStamp(0), direct(
             l = std::stoi(level.substr(6, level.size() - 6));
             maxLevel = maxLevel > l ? maxLevel : l;
             std::string levelpath = direct + "/" + level;
+            files.clear();
             utils::scanDir(levelpath, files);
             // iterate all files in the directory
-            for (int i = 0; i < files.size(); i++) {
-                std::string file = files[i];
+            for (auto &file : files) {
                 std::string filepath = levelpath + "/" + file;
                 // load bloom filter
                 if (file.substr(file.length() - 4) == ".sst") {
                     id = std::stoi(file.substr(0, file.length() - 4));
                     std::ifstream infile(filepath, std::ios::in | std::ios::binary);
-                      if (!infile.is_open()) {
+                    if (!infile.is_open()) {
                         std::cerr << "Error: kvstore open file " << filepath << " failed" << std::endl;
                         continue;
                     }
@@ -100,12 +100,7 @@ std::string KVStore::get(uint64_t key)
     if (res != "") {
         return res;
     }
-    // sort ssTables as timestamp
-    for (int i = 0; i <= maxLevel; i++) {
-        std::sort(ssTables[i].begin(), ssTables[i].end(), [](SSTable &a, SSTable &b) {
-            return a.timeStamp > b.timeStamp;
-        });
-    }
+
     // iterate bloomfilter from end
     for (int i = 0; i <= maxLevel; i++) {
         for (auto it = ssTables[i].begin(); it != ssTables[i].end(); it++) {
@@ -167,8 +162,9 @@ void KVStore::compaction() {
     }
     std::vector<uint32_t> idlist;
     std::map<uint64_t, std::string> keySet;
-    selectCompaction(0, 0, 3, idlist, keySet);
-    compactionLeveling(1, timeStamp, idlist, keySet);
+    int maxtime;
+    maxtime = selectCompaction(0, 0, 3, idlist, keySet);
+    compactionLeveling(1, maxtime, idlist, keySet);
 
     for (int i = 1; i <= maxLevel; i++) {
         int limit = 2 << i;
@@ -178,16 +174,17 @@ void KVStore::compaction() {
         std::sort(ssTables[i].begin(), ssTables[i].end(), [](SSTable &a, SSTable &b) {
             return a.timeStamp > b.timeStamp;
         });
-        selectCompaction(i, limit, ssTables[i].size(), idlist, keySet);
-        compactionLeveling(i + 1, timeStamp, idlist, keySet);
+        maxtime = selectCompaction(i, limit, ssTables[i].size(), idlist, keySet);
+        compactionLeveling(i + 1, maxtime, idlist, keySet);
     }
 }
 
-void KVStore::selectCompaction(int level, int l, int r, std::vector<uint32_t> &idlist, std::map<uint64_t, std::string> &keyset) {
+int KVStore::selectCompaction(int level, int l, int r, std::vector<uint32_t> &idlist, std::map<uint64_t, std::string> &keyset) {
     idlist.clear();
     keyset.clear();
     uint64_t minkey = 0xffffffffffffffff;
     uint64_t maxkey = 0;
+    int maxtime = 0;
     std::vector<SSTable> oldSSTables;
     
     // deal with level-0
@@ -197,6 +194,7 @@ void KVStore::selectCompaction(int level, int l, int r, std::vector<uint32_t> &i
         // print the index of it
         minkey = minkey < it->minKey ? minkey : it->minKey;
         maxkey = maxkey > it->maxKey ? maxkey : it->maxKey;
+        maxtime = maxtime > it->timeStamp ? maxtime : it->timeStamp;
         idlist.push_back(it->id);
         oldSSTables.push_back(*it);
         it = ssTables[level].erase(it);
@@ -228,13 +226,14 @@ void KVStore::selectCompaction(int level, int l, int r, std::vector<uint32_t> &i
         // iterate tmpSet
         for (auto &set : tmpSet) {
             if (keyset.find(set.first) == keyset.end()) {
-                if (maxLevel == 0 && set.second == "~DELETED~") {
+                if (maxLevel == level && set.second == "~DELETED~") {
                     continue;
                 }
                 keyset[set.first] = set.second;
             }
         }
     }
+    return maxtime;
 }
 
 void KVStore::compactionLeveling(int level, int timestamp, const std::vector<uint32_t> &idlist, const std::map<uint64_t, std::string> &keyset) {

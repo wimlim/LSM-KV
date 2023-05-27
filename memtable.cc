@@ -96,6 +96,7 @@ void MemTable::ins(uint64_t key, const std::string& val) {
     x = x->forward[0];
     // already in table
     if (x != nullptr && x->key == key) {
+        size = size - x->val.size() + val.size();
         x->val = val;
         return;
     } 
