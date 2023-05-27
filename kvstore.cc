@@ -100,9 +100,11 @@ std::string KVStore::get(uint64_t key)
     if (res != "") {
         return res;
     }
-
     // iterate bloomfilter from end
     for (int i = 0; i <= maxLevel; i++) {
+        std::sort(ssTables[i].begin(), ssTables[i].end(), [](SSTable &a, SSTable &b) {
+            return a.timeStamp > b.timeStamp;
+        });
         for (auto it = ssTables[i].begin(); it != ssTables[i].end(); it++) {
             if (it->contains(key)) {
                 res = it->get(key).c_str();
@@ -124,7 +126,7 @@ std::string KVStore::get(uint64_t key)
 bool KVStore::del(uint64_t key)
 {
     std::string res = get(key);
-    if (res == "" || res == "~DELETED~") {
+    if (res == "") {
         return false;
     }
     else {
@@ -151,6 +153,8 @@ void KVStore::reset()
         utils::rmdir(levelpath.c_str());
     }
 	// reset bloomfilters
+    timeStamp = 0;
+    maxLevel = 0;
 	ssTables.clear();
 	// reset memTable
 	memTable.reset();
@@ -203,7 +207,7 @@ int KVStore::selectCompaction(int level, int l, int r, std::vector<uint32_t> &id
     int nxtlevel = level + 1;
     it = ssTables[nxtlevel].begin();
     while (it != ssTables[nxtlevel].end()) {
-        if (it->minKey >= minkey || it->maxKey <= maxkey) {
+        if (it->minKey <= maxkey && it->maxKey >= minkey) {
             idlist.push_back(it->id);
             oldSSTables.push_back(*it);
             it = ssTables[nxtlevel].erase(it);
