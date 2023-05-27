@@ -102,9 +102,6 @@ std::string KVStore::get(uint64_t key)
     }
     // iterate bloomfilter from end
     for (int i = 0; i <= maxLevel; i++) {
-        std::sort(ssTables[i].begin(), ssTables[i].end(), [](SSTable &a, SSTable &b) {
-            return a.timeStamp > b.timeStamp;
-        });
         for (auto it = ssTables[i].begin(); it != ssTables[i].end(); it++) {
             if (it->contains(key)) {
                 res = it->get(key).c_str();
@@ -230,9 +227,6 @@ int KVStore::selectCompaction(int level, int l, int r, std::vector<uint32_t> &id
         // iterate tmpSet
         for (auto &set : tmpSet) {
             if (keyset.find(set.first) == keyset.end()) {
-                if (maxLevel == level && set.second == "~DELETED~") {
-                    continue;
-                }
                 keyset[set.first] = set.second;
             }
         }
