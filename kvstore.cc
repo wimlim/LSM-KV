@@ -74,7 +74,8 @@ KVStore::~KVStore()
  */
 void KVStore::put(uint64_t key, const std::string &s)
 {
-	if (memTable.getSize() + s.size() + 12 > MAX_MEM_SIZE) {
+    std::string res = memTable.get(key);
+	if (memTable.getSize() + s.size() - res.size() + 12 > MAX_MEM_SIZE) {
         timeStamp++;
 		std::string filename = direct + "/level-0/" +  std::to_string(timeStamp) + ".sst";
 		ssTables[0].push_back(SSTable());
@@ -100,16 +101,14 @@ std::string KVStore::get(uint64_t key)
     if (res != "") {
         return res;
     }
-    //printf("-------------------\n");
     // iterate bloomfilter from end
     for (int i = 0; i <= maxLevel; i++) {
-        std::sort(ssTables[i].begin(), ssTables[i].end(), [](SSTable &a, SSTable &b) { 
+        std::sort(ssTables[i].begin(), ssTables[i].end(), [](SSTable &a, SSTable &b) {
             return a.timeStamp > b.timeStamp;
         });
         for (auto it = ssTables[i].begin(); it != ssTables[i].end(); it++) {
-            //printf("%d ", it->timeStamp);
             if (it->contains(key)) {
-                res = it->get(key).c_str();
+                res = it->get(key);
                 if (res == "~DELETED~") {
                     return "";
                 }
@@ -118,9 +117,7 @@ std::string KVStore::get(uint64_t key)
                 }
             }
         }
-        //printf("\n");
     }
-    
     return "";
 }
 /**
@@ -147,25 +144,25 @@ void KVStore::reset()
 {
     std::vector<std::string> files;
 	// delete all files and directs under direct
-    for (int i = 1; i < 10; i++) {
+    for (int i = 0; i <= maxLevel; i++) {
         std::string levelpath = direct + "/level-" + std::to_string(i);
         utils::scanDir(levelpath, files);
         for (auto &file : files) {
             std::string filepath = levelpath + "/" + file;
             utils::rmfile(filepath.c_str());
         }
-        utils::rmdir(levelpath.c_str());
+        if (i)
+            utils::rmdir(levelpath.c_str());
     }
     timeStamp = 0;
     maxLevel = 0;
-    // reset bloomfilters
-	ssTables.clear();
+    ssTables.clear();
 	// reset memTable
 	memTable.reset();
 }
 
 void KVStore::compaction() {
-    if (ssTables[0].size() < 3) {
+    if (ssTables[0].size() <= 2) {
         return;
     }
     std::vector<uint32_t> idlist;
@@ -182,7 +179,7 @@ void KVStore::compaction() {
         std::sort(ssTables[i].begin(), ssTables[i].end(), [](SSTable &a, SSTable &b) {
             return a.timeStamp > b.timeStamp;
         });
-        maxtime = selectCompaction(i, limit, ssTables[i].size(), idlist, keySet);
+        maxtime = selectCompaction(i, 0, ssTables[i].size(), idlist, keySet);
         compactionLeveling(i + 1, maxtime, idlist, keySet);
     }
 }
@@ -199,7 +196,6 @@ int KVStore::selectCompaction(int level, int l, int r, std::vector<uint32_t> &id
     auto it = ssTables[level].begin() + l;
     r = r - l;
     while (r--) {
-        // print the index of it
         minkey = minkey < it->minKey ? minkey : it->minKey;
         maxkey = maxkey > it->maxKey ? maxkey : it->maxKey;
         maxtime = maxtime > it->timeStamp ? maxtime : it->timeStamp;
