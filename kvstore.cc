@@ -12,7 +12,7 @@ KVStore::KVStore(const std::string &dir): KVStoreAPI(dir), timeStamp(0), direct(
     }
     uint64_t t, n, mink, maxk;
     uint32_t l, id;
-    std::vector<char> buffer(10240);
+    std::vector<char> buffer(MAX_MEM_SIZE);
     // iterate all directories named Level*
     std::vector<std::string> levels;
 	std::vector<std::string> files;
@@ -32,7 +32,7 @@ KVStore::KVStore(const std::string &dir): KVStoreAPI(dir), timeStamp(0), direct(
                     id = std::stoi(file.substr(0, file.length() - 4));
                     std::ifstream infile(filepath, std::ios::in | std::ios::binary);
                       if (!infile.is_open()) {
-                        std::cerr << "Error: kvstore open file failed" << std::endl;
+                        std::cerr << "Error: kvstore open file " << filepath << " failed" << std::endl;
                         continue;
                     }
                     // read t, n, mink, maxk
@@ -46,7 +46,6 @@ KVStore::KVStore(const std::string &dir): KVStoreAPI(dir), timeStamp(0), direct(
                     infile.read(buffer.data(), 10240);
                     ssTables[l].push_back(SSTable(filepath, id, t, n, mink, maxk, buffer));
                     // read index
-                    buffer.resize(n * 12);
                     infile.read(buffer.data(), n * 12);
                     ssTables[l].back().addKeySet(buffer.data(), n);
                     infile.close();
@@ -163,30 +162,53 @@ void KVStore::reset()
 }
 
 void KVStore::compaction() {
-    return;
     if (ssTables[0].size() < 3) {
         return;
     }
+    std::vector<uint32_t> idlist;
+    std::map<uint64_t, std::string> keySet;
+    selectCompaction(0, 0, 3, idlist, keySet);
+    compactionLeveling(1, timeStamp, idlist, keySet);
+
+    for (int i = 1; i <= maxLevel; i++) {
+        int limit = 2 << i;
+        if (ssTables[i].size() <= limit) {
+            return;
+        }
+        std::sort(ssTables[i].begin(), ssTables[i].end(), [](SSTable &a, SSTable &b) {
+            return a.timeStamp > b.timeStamp;
+        });
+        selectCompaction(i, limit, ssTables[i].size(), idlist, keySet);
+        compactionLeveling(i + 1, timeStamp, idlist, keySet);
+    }
+}
+
+void KVStore::selectCompaction(int level, int l, int r, std::vector<uint32_t> &idlist, std::map<uint64_t, std::string> &keyset) {
+    idlist.clear();
+    keyset.clear();
     uint64_t minkey = 0xffffffffffffffff;
     uint64_t maxkey = 0;
     std::vector<SSTable> oldSSTables;
-    std::vector<uint32_t> idlist;
+    
     // deal with level-0
-    auto it = ssTables[0].begin();
-    while (it != ssTables[0].end()) {
+    auto it = ssTables[level].begin() + l;
+    r = r - l;
+    while (r--) {
+        // print the index of it
         minkey = minkey < it->minKey ? minkey : it->minKey;
         maxkey = maxkey > it->maxKey ? maxkey : it->maxKey;
         idlist.push_back(it->id);
         oldSSTables.push_back(*it);
-        it = ssTables[0].erase(it);
+        it = ssTables[level].erase(it);
     }
     // deal with level-1 from minkey to maxkey
-    it = ssTables[1].begin();
-    while (it != ssTables[1].end()) {
+    int nxtlevel = level + 1;
+    it = ssTables[nxtlevel].begin();
+    while (it != ssTables[nxtlevel].end()) {
         if (it->minKey >= minkey || it->maxKey <= maxkey) {
             idlist.push_back(it->id);
             oldSSTables.push_back(*it);
-            it = ssTables[1].erase(it);
+            it = ssTables[nxtlevel].erase(it);
         }
         else {
             it++;
@@ -196,7 +218,7 @@ void KVStore::compaction() {
     std::sort(oldSSTables.begin(), oldSSTables.end(), [](const SSTable &a, const SSTable &b) {
         return a.timeStamp > b.timeStamp;
     });
-    std::map<uint64_t, std::string> keySet;
+    
     std::vector<std::pair<uint64_t, std::string>> tmpSet;
     // iterate oldSSTables
     for (auto &sst : oldSSTables) {
@@ -205,15 +227,14 @@ void KVStore::compaction() {
         utils::rmfile((filepath).c_str());
         // iterate tmpSet
         for (auto &set : tmpSet) {
-            if (keySet.find(set.first) == keySet.end()) {
+            if (keyset.find(set.first) == keyset.end()) {
                 if (maxLevel == 0 && set.second == "~DELETED~") {
                     continue;
                 }
-                keySet[set.first] = set.second;
+                keyset[set.first] = set.second;
             }
         }
     }
-    compactionLeveling(1, timeStamp, idlist, keySet);
 }
 
 void KVStore::compactionLeveling(int level, int timestamp, const std::vector<uint32_t> &idlist, const std::map<uint64_t, std::string> &keyset) {
@@ -226,27 +247,27 @@ void KVStore::compactionLeveling(int level, int timestamp, const std::vector<uin
     std::string s;
     int cnt = 0;
     for (auto &set : keyset) {
-        if (memTable.getSize() + s.size() + 12 > MAX_MEM_SIZE) {
-            key = set.first;
-            s = set.second;
+        key = set.first;
+        s = set.second;
+        if (tmp.getSize() + s.size() + 12 > MAX_MEM_SIZE) {
             std::string filename = direct + "/level-" + std::to_string(level) + "/" +  std::to_string(idlist[cnt]) + ".sst";
             ssTables[level].push_back(SSTable());
-            memTable.writeToDisk(filename, timeStamp, ssTables[level].back());
+            tmp.writeToDisk(filename, timeStamp, ssTables[level].back());
             ssTables[level].back().id = idlist[cnt];
-            memTable.reset();
-            memTable.ins(key, s);
+            tmp.reset();
+            tmp.ins(key, s);
             cnt++;
         }
         else {
-            memTable.ins(key, s);
+            tmp.ins(key, s);
 	    }
     }
-    if (memTable.getSize() > 0) {
+    if (tmp.getSize() > 10272) {
         std::string filename = direct + "/level-1/" +  std::to_string(idlist[cnt]) + ".sst";
         ssTables[level].push_back(SSTable());
-        memTable.writeToDisk(filename, timeStamp, ssTables[level].back());
+        tmp.writeToDisk(filename, timeStamp, ssTables[level].back());
         ssTables[level].back().id = idlist[cnt];
-        memTable.reset();
+        tmp.reset();
     }
 }
 
