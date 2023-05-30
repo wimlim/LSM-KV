@@ -197,10 +197,8 @@ void KVStore::compaction() {
     std::vector<uint32_t> idlist;
     std::map<uint64_t, std::string> keySet;
     int maxtime;
-    maxtime = selectCompaction(0, 0, 3, idlist, keySet);
-    compactionLeveling(1, maxtime, idlist, keySet);
 
-    for (int i = 1; i <= maxLevel; i++) {
+    for (int i = 0; i <= maxLevel; i++) {
         int limit = levelLimit[i];
         if (ssTables[i].size() <= limit) {
             return;
