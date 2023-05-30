@@ -5,6 +5,7 @@
 **/
 KVStore::KVStore(const std::string &dir): KVStoreAPI(dir), timeStamp(0), direct(dir), maxLevel(0), ssTables(20)
 {
+    initConf();
     if (!utils::dirExists(direct)) {
         utils::mkdir(direct.c_str());
         utils::mkdir((direct + "/level-0").c_str());
@@ -57,6 +58,29 @@ KVStore::KVStore(const std::string &dir): KVStoreAPI(dir), timeStamp(0), direct(
     if (!utils::dirExists(level0)) {
         utils::mkdir(level0.c_str());
     }
+}
+
+void KVStore::initConf() {
+    // open file default.conf
+    std::ifstream infile("default.conf", std::ios::in);
+    if (!infile.is_open()) {
+        std::cerr << "Error: kvstore open file default.conf failed" << std::endl;
+        return;
+    }
+    // read in levelLimit and LevelType
+    int id;
+    std::string type;
+    std::string line;
+    while (std::getline(infile, line)) {
+        std::stringstream ss(line);
+        ss >> id;
+        ss >> levelLimit[id];
+        ss >> type;
+        if (type == "Tiering") levelType[id] = Tiering;
+        else levelType[id] = Leveling;
+        printf("%d %s\n", levelLimit[id], type.c_str());
+    }
+
 }
 
 KVStore::~KVStore()
@@ -186,7 +210,11 @@ void KVStore::compaction() {
         std::sort(ssTables[i].begin(), ssTables[i].end(), [](SSTable &a, SSTable &b) {
             return a.timeStamp > b.timeStamp;
         });
-        maxtime = selectCompaction(i, 0, ssTables[i].size(), idlist, keySet);
+        // find the sstables of the same value right before limit
+        while (limit && ssTables[i][limit].timeStamp == ssTables[i][limit - 1].timeStamp) {
+            limit--;
+        }
+        maxtime = selectCompaction(i, limit, ssTables[i].size(), idlist, keySet);
         compactionLeveling(i + 1, maxtime, idlist, keySet);
     }
 }
