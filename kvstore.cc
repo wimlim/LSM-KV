@@ -100,6 +100,8 @@ std::string KVStore::get(uint64_t key)
     if (res != "") {
         return res;
     }
+    int time = 0;
+    std::string tmp;
     // iterate bloomfilter from end
     for (int i = 0; i <= maxLevel; i++) {
         std::sort(ssTables[i].begin(), ssTables[i].end(), [](SSTable &a, SSTable &b) {
@@ -107,17 +109,23 @@ std::string KVStore::get(uint64_t key)
         });
         for (auto it = ssTables[i].begin(); it != ssTables[i].end(); it++) {
             if (it->contains(key)) {
-                res = it->get(key);
-                if (res == "~DELETED~") {
-                    return "";
-                }
-                else if (res != "") {
-                    return res;
+                if (it->timeStamp > time ) {
+                    tmp = it->get(key);
+                    if (tmp == "") {
+                        continue;
+                    }
+                    res = tmp;
+                    time = it->timeStamp;
                 }
             }
         }
     }
-    return "";
+    if (res != "~DELETED~") {
+        return res;
+    }
+    else {
+        return "";
+    }
 }
 /**
  * Delete the given key-value pair if it exists.
@@ -178,7 +186,7 @@ void KVStore::compaction() {
         std::sort(ssTables[i].begin(), ssTables[i].end(), [](SSTable &a, SSTable &b) {
             return a.timeStamp > b.timeStamp;
         });
-        maxtime = selectCompaction(i, limit, ssTables[i].size(), idlist, keySet);
+        maxtime = selectCompaction(i, 0, ssTables[i].size(), idlist, keySet);
         compactionLeveling(i + 1, maxtime, idlist, keySet);
     }
 }
