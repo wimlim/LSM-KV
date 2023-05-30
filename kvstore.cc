@@ -79,6 +79,10 @@ void KVStore::initConf() {
         if (type == "Tiering") levelType[id] = Tiering;
         else levelType[id] = Leveling;
     }
+    for (int i = id + 1; i < 20; i++) {
+        levelLimit[i] = levelLimit[i - 1] << 1;
+        levelType[i] = Leveling;
+    }
 }
 
 KVStore::~KVStore()
