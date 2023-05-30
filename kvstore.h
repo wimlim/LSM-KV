@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <map>
 #include <algorithm>
+enum levelType_t{Tiering, Leveling};
 
 class KVStore : public KVStoreAPI {
 public:
@@ -24,12 +25,15 @@ public:
 
 	void scan(uint64_t key1, uint64_t key2, std::list<std::pair<uint64_t, std::string> > &list) override;
 private:
+	void initConf();
 	void compaction();
 	int selectCompaction(int level, int l, int r, std::vector<uint32_t> &idlist, std::map<uint64_t, std::string> &keyset);
 	void compactionLeveling(int level, int timestamp, const std::vector<uint32_t> &idlist, const std::map<uint64_t, std::string> &keyset);
 	MemTable memTable;
 	std::vector<std::vector<SSTable>> ssTables;
 	uint32_t maxLevel;
+	uint32_t levelLimit[20];
+	levelType_t levelType[20];
 	std::string direct;
 	uint64_t timeStamp;
 	static constexpr uint32_t MAX_MEM_SIZE = 2 * 1024 * 1024;

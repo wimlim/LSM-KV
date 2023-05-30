@@ -78,9 +78,7 @@ void KVStore::initConf() {
         ss >> type;
         if (type == "Tiering") levelType[id] = Tiering;
         else levelType[id] = Leveling;
-        printf("%d %s\n", levelLimit[id], type.c_str());
     }
-
 }
 
 KVStore::~KVStore()
@@ -203,16 +201,21 @@ void KVStore::compaction() {
     compactionLeveling(1, maxtime, idlist, keySet);
 
     for (int i = 1; i <= maxLevel; i++) {
-        int limit = 2 << i;
+        int limit = levelLimit[i];
         if (ssTables[i].size() <= limit) {
             return;
         }
-        std::sort(ssTables[i].begin(), ssTables[i].end(), [](SSTable &a, SSTable &b) {
-            return a.timeStamp > b.timeStamp;
-        });
-        // find the sstables of the same value right before limit
-        while (limit && ssTables[i][limit].timeStamp == ssTables[i][limit - 1].timeStamp) {
-            limit--;
+        if (levelType[i] == Leveling) {
+            std::sort(ssTables[i].begin(), ssTables[i].end(), [](SSTable &a, SSTable &b) {
+                return a.timeStamp > b.timeStamp;
+            });
+            // find the sstables of the same value right before limit
+            while (limit && ssTables[i][limit].timeStamp == ssTables[i][limit - 1].timeStamp) {
+                limit--;
+            }
+        }
+        else {
+            limit = 0;
         }
         maxtime = selectCompaction(i, limit, ssTables[i].size(), idlist, keySet);
         compactionLeveling(i + 1, maxtime, idlist, keySet);
