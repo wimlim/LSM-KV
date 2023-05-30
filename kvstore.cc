@@ -241,15 +241,17 @@ int KVStore::selectCompaction(int level, int l, int r, std::vector<uint32_t> &id
     }
     // deal with level-1 from minkey to maxkey
     int nxtlevel = level + 1;
-    it = ssTables[nxtlevel].begin();
-    while (it != ssTables[nxtlevel].end()) {
-        if (it->minKey <= maxkey && it->maxKey >= minkey) {
-            idlist.push_back(it->id);
-            oldSSTables.push_back(*it);
-            it = ssTables[nxtlevel].erase(it);
-        }
-        else {
-            it++;
+    if (levelType[nxtlevel] == Leveling) {
+        it = ssTables[nxtlevel].begin();
+        while (it != ssTables[nxtlevel].end()) {
+            if (it->minKey <= maxkey && it->maxKey >= minkey) {
+                idlist.push_back(it->id);
+                oldSSTables.push_back(*it);
+                it = ssTables[nxtlevel].erase(it);
+            }
+            else {
+                it++;
+            }
         }
     }
     // merge sort oldSSTables
@@ -299,7 +301,7 @@ void KVStore::compactionLeveling(int level, int timestamp, const std::vector<uin
 	    }
     }
     if (tmp.getSize() > 10272) {
-        std::string filename = direct + "/level-1/" +  std::to_string(idlist[cnt]) + ".sst";
+        std::string filename = direct + "/level-" + std::to_string(level) + "/" +  std::to_string(idlist[cnt]) + ".sst";
         ssTables[level].push_back(SSTable());
         tmp.writeToDisk(filename, timeStamp, ssTables[level].back());
         ssTables[level].back().id = idlist[cnt];
