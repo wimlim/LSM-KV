@@ -74,8 +74,7 @@ KVStore::~KVStore()
  */
 void KVStore::put(uint64_t key, const std::string &s)
 {
-    std::string res = memTable.get(key);
-	if (memTable.getSize() + s.size() - res.size() + 12 > MAX_MEM_SIZE) {
+	if (memTable.getSize() + s.size() + 12 > MAX_MEM_SIZE) {
         timeStamp++;
 		std::string filename = direct + "/level-0/" +  std::to_string(timeStamp) + ".sst";
 		ssTables[0].push_back(SSTable());
@@ -179,7 +178,7 @@ void KVStore::compaction() {
         std::sort(ssTables[i].begin(), ssTables[i].end(), [](SSTable &a, SSTable &b) {
             return a.timeStamp > b.timeStamp;
         });
-        maxtime = selectCompaction(i, 0, ssTables[i].size(), idlist, keySet);
+        maxtime = selectCompaction(i, limit, ssTables[i].size(), idlist, keySet);
         compactionLeveling(i + 1, maxtime, idlist, keySet);
     }
 }
